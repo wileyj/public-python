@@ -1,17 +1,17 @@
 from aws_conn import conn
-from difflib import SequenceMatcher
-from datetime import datetime, timedelta
-import time
-import argparse
 import logging
 from logger import Logger
 from config import Global
 from args import Args
 from instance import Instance
-# import sys
+from volume import Volume
+from snapshot import Snapshot
+from image import Image
 
 Logger()
 args = Args().args
+ec2_client = conn('ec2', args.region)
+cloudwatch_client = conn('cloudwatch', args.region)
 
 if __name__ == "__main__":
     # args.dry_run = True
@@ -19,7 +19,7 @@ if __name__ == "__main__":
         args.env = "production"
     if args.env == "stg":
         args.env = "staging"
-    Logging().configure(args.verbose)
+    Logger().configure(args.verbose)
     # __all__ = ('snapshot', 'Logging')
     __all__ = ('Logging')
     logging = logging.getLogger(__name__)
@@ -30,126 +30,126 @@ if __name__ == "__main__":
     if args.volume or args.instance:
         print "Defaulting to type 'create-snapshot' with inclusiong of arg: %s %s" % (args.instance, args.volume)
         args.type = "create-snapshot"
-    logging.debug("")
-    logging.debug("*** Timing ***")
-    logging.debug("\tCurrent time: %i" % (Global.current_time))
-    logging.debug("\tRetention: %i" % (args.retention))
-    logging.debug("\tFull day in seconds: %i" % (Global.full_day))
-    logging.debug("\tToday: %s" % (str(Global.today)))
-    logging.debug("\tTomorrow: %s" % (str(Global.tomorrow)))
-    logging.debug("\tYesterday: %s" % (str(Global.yesterday)))
-    logging.debug("\t2 Weeks Ago: %s" % (str(Global.two_weeks)))
-    logging.debug("\t4 Weeks Ago: %s" % (str(Global.four_weeks)))
-    logging.debug("\t30 Days Ago: %s" % (str(Global.thirty_days)))
-    logging.debug("\tRetention Time: %s" % (str(Global.retention_day)))
-    logging.debug("\tStart Date: %s" % (str(Global.start_date)))
-    logging.debug("\tShort Date: %s" % (Global.short_date))
-    logging.debug("\tShort Hour: %s" % (Global.short_hour))
-    logging.debug("")
-    logging.debug("*** Defined Args ***")
-    logging.debug("\targs.verbose: %s" % (args.verbose))
-    logging.debug("\targs.type: %s" % (args.type))
-    logging.debug("\targs.env: %s" % (args.env))
-    logging.debug("\targs.volume: %s" % (args.volume))
-    logging.debug("\targs.instance: %s" % (args.instance))
-    logging.debug("\targs.retention: %s" % (args.retention))
-    logging.debug("\targs.dry_run: %s" % (args.dry_run))
-    logging.debug("\targs.region: %s" % (args.region))
-    logging.debug("\targs.account_id: %s" % (args.account_id))
-    logging.debug("\targs.rotation: %s" % (args.rotation))
-    logging.debug("\targs.hourly: %s" % (args.hourly))
-    logging.debug("\targs.persist: %s" % (args.persist))
+    logging.error("")
+    logging.error("*** Timing ***")
+    logging.error("\tCurrent time: %i" % (Global.current_time))
+    logging.error("\tRetention: %i" % (args.retention))
+    logging.error("\tFull day in seconds: %i" % (Global.full_day))
+    logging.error("\tToday: %s" % (str(Global.today)))
+    logging.error("\tTomorrow: %s" % (str(Global.tomorrow)))
+    logging.error("\tYesterday: %s" % (str(Global.yesterday)))
+    logging.error("\t2 Weeks Ago: %s" % (str(Global.two_weeks)))
+    logging.error("\t4 Weeks Ago: %s" % (str(Global.four_weeks)))
+    logging.error("\t30 Days Ago: %s" % (str(Global.thirty_days)))
+    logging.error("\tRetention Time: %s" % (str(Global.retention_day)))
+    logging.error("\tStart Date: %s" % (str(Global.start_date)))
+    logging.error("\tShort Date: %s" % (Global.short_date))
+    logging.error("\tShort Hour: %s" % (Global.short_hour))
+    logging.error("")
+    logging.error("*** Defined Args ***")
+    logging.error("\targs.verbose: %s" % (args.verbose))
+    logging.error("\targs.type: %s" % (args.type))
+    logging.error("\targs.env: %s" % (args.env))
+    logging.error("\targs.volume: %s" % (args.volume))
+    logging.error("\targs.instance: %s" % (args.instance))
+    logging.error("\targs.retention: %s" % (args.retention))
+    logging.error("\targs.dry_run: %s" % (args.dry_run))
+    logging.error("\targs.region: %s" % (args.region))
+    logging.error("\targs.account_id: %s" % (args.account_id))
+    logging.error("\targs.rotation: %s" % (args.rotation))
+    logging.error("\targs.hourly: %s" % (args.hourly))
+    logging.error("\targs.persist: %s" % (args.persist))
 
-    Instance().find()
-    find_volumes()
+    Instance().find(ec2_client, args.env, args.dry_run, '')
+    Volume().find(ec2_client, args.instance, args.volume, args.dry_run, args.hourly, args.persist)
     if args.type != "create-snapshot" or args.type != "create-snapshots":
-        find_snapshots()
+        Snapshot().find(ec2_client, Global.account_id, args.env)
     if not args.volume and not args.instance:
         if args.type != "clean-snapshot" or args.type != "clean-snapshots" or args.type != "clean-volume" or args.type != "clean-volumes":
-            find_images()
+            Image().find(ec2_client, args.env, Global.account_id)
     if args.type == "all" or args.type == "clean-snapshot" or args.type == "clean-snapshots" or args.type == "clean":
         snapshot_count = 0
-        logging.debug("\n\n")
-        logging.debug("Ignoring any env flag for cleanup: %s" % (args.env))
-        print "*** Cleaning Snapshots ***"
-        for snapshot in snapshot_data:
-            if volume_snapshot_count[snapshot_data[snapshot]['volume_id']]['count'] > args.rotation and not snapshot_data[snapshot]['persist'] and not snapshot_data[snapshot]['id'] in image_data:
-                logging.debug("")
-                logging.debug("snapshot id: %s" % (snapshot_data[snapshot]['id']))
-                logging.debug("\tsnap_vol: %s" % (snapshot_data[snapshot]['volume_id']))
-                logging.debug("\tsnap_desc: %s" % (snapshot_data[snapshot]['description']))
-                logging.debug("\tsnap_date: %s" % (snapshot_data[snapshot]['date']))
-                logging.debug("\tsnap_ratio: %s" % (snapshot_data[snapshot]['ratio']))
-                logging.debug("\tsnap_age: %s" % (snapshot_data[snapshot]['age']))
-                logging.debug("\tsnap_persist: %s" % (snapshot_data[snapshot]['persist']))
-                logging.debug("\tsnap_method: %s" % (snapshot_data[snapshot]['method']))
-                logging.debug("\tsnap_count: %s" % (snapshot_data[snapshot]['snap_count']))
-                logging.debug("\tvolume_snapshot_count: %s" % (volume_snapshot_count[snapshot_data[snapshot]['volume_id']]['count']))
-                logging.debug("\trotation_scheme: %i" % (args.rotation))
-                logging.info("\tDeleting %s - [ snap_count:%s, volume_count:%s, persist: %s ] [ vol: %s ]" % ( snapshot_data[snapshot]['id'], snapshot_data[snapshot]['snap_count'], volume_snapshot_count[snapshot_data[snapshot]['volume_id']]['count'], snapshot_data[snapshot]['persist'],snapshot_data[snapshot]['volume_id']))
-                if snapshot_data[snapshot]['volume_id'] not in all_volumes:
-                    logging.debug("\tvol: %s snap: %s snap_count: %s rotate: %i" % (snapshot_data[snapshot]['volume_id'], snapshot_data[snapshot]['id'], volume_snapshot_count[snapshot_data[snapshot]['volume_id']]['count'], args.rotation))
-                    ret_val = delete_snapshot(snapshot_data[snapshot]['id'], '')
-                    snapshot_count = snapshot_count + ret_val
-                    volume_snapshot_count[snapshot_data[snapshot]['volume_id']]['count'] = volume_snapshot_count[snapshot_data[snapshot]['volume_id']]['count'] - ret_val
+        logging.error("\n\n")
+        logging.error("Ignoring any env flag for cleanup: %s" % (args.env))
+        logginer.error("*** Cleaning Snapshots ***")
+        for snapshot in Global.snapshot_data:
+            if Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] > args.rotation and not Global.snapshot_data[snapshot]['persist'] and not Global.snapshot_data[snapshot]['id'] in Global.image_data:
+                logging.critical("")
+                logging.error("snapshot id: %s" % (Global.snapshot_data[snapshot]['id']))
+                logging.error("\tsnap_vol: %s" % (Global.snapshot_data[snapshot]['volume_id']))
+                logging.error("\tsnap_desc: %s" % (Global.snapshot_data[snapshot]['description']))
+                logging.error("\tsnap_date: %s" % (Global.snapshot_data[snapshot]['date']))
+                logging.error("\tsnap_ratio: %s" % (Global.snapshot_data[snapshot]['ratio']))
+                logging.error("\tsnap_age: %s" % (Global.snapshot_data[snapshot]['age']))
+                logging.error("\tsnap_persist: %s" % (Global.snapshot_data[snapshot]['persist']))
+                logging.error("\tsnap_method: %s" % (Global.snapshot_data[snapshot]['method']))
+                logging.error("\tsnap_count: %s" % (Global.snapshot_data[snapshot]['snap_count']))
+                logging.error("\tvolume_snapshot_count: %s" % (Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count']))
+                logging.error("\trotation_scheme: %i" % (args.rotation))
+                logging.critical("\tDeleting %s - [ snap_count:%s, volume_count:%s, persist: %s ] [ vol: %s ]" % (Global.snapshot_data[snapshot]['id'], Global.snapshot_data[snapshot]['snap_count'], Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'], Global.snapshot_data[snapshot]['persist'], Global.snapshot_data[snapshot]['volume_id']))
+                if Global.snapshot_data[snapshot]['volume_id'] not in Global.all_volumes:
+                    logging.debug("\tvol: %s snap: %s snap_count: %s rotate: %i" % (Global.snapshot_data[snapshot]['volume_id'], Global.snapshot_data[snapshot]['id'], Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'], args.rotation))
+                    ret_val = Snapshot().delete(ec2_client, Global.snapshot_data[snapshot]['id'], '')
+                    Global.snapshot_count = Global.snapshot_count + ret_val
+                    Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] = Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] - ret_val
                 else:
-                    logging.debug("\tvol: %s snap: %s snap_count: %s rotate: %i" % (snapshot_data[snapshot]['volume_id'], snapshot_data[snapshot]['id'], volume_snapshot_count[snapshot_data[snapshot]['volume_id']]['count'], args.rotation))
-                    ret_val = delete_snapshot(snapshot_data[snapshot]['id'], 'delete_snapshot')
-                    snapshot_count = snapshot_count + ret_val
-                    volume_snapshot_count[snapshot_data[snapshot]['volume_id']]['count'] = volume_snapshot_count[snapshot_data[snapshot]['volume_id']]['count'] - ret_val
+                    logging.debug("\tvol: %s snap: %s snap_count: %s rotate: %i" % (Global.snapshot_data[snapshot]['volume_id'], Global.snapshot_data[snapshot]['id'], Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'], args.rotation))
+                    ret_val = Snapshot().delete(ec2_client, Global.snapshot_data[snapshot]['id'], 'delete_snapshot')
+                    Global.snapshot_count = Global.snapshot_count + ret_val
+                    Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] = Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] - ret_val
             else:
-                logging.debug("")
-                logging.debug("\tIgnoring deletion of %s - [ snap_count:%s, volume_count:%s, persist: %s ]" % (snapshot_data[snapshot]['id'], snapshot_data[snapshot]['snap_count'], volume_snapshot_count[snapshot_data[snapshot]['volume_id']]['count'], snapshot_data[snapshot]['persist']))
-        print "   *** Total Snapshots Deleted: %s" % (snapshot_count)
+                logging.critical("")
+                logging.critical("\tIgnoring deletion of %s - [ snap_count:%s, volume_count:%s, persist: %s ]" % (Global.snapshot_data[snapshot]['id'], Global.snapshot_data[snapshot]['snap_count'], Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'], Global.snapshot_data[snapshot]['persist']))
+        logging.critical("   *** Total Snapshots Deleted: %s" % (snapshot_count))
 
     if args.type == "all" or args.type == "clean-volume" or args.type == "clean-volumes" or args.type == "clean":
         volume_count = 0
-        logging.debug("\n\n")
-        logging.debug("Ignoring any env flag for cleanup: %s" % (args.env))
-        print "*** Cleaning Volumes ***"
-        print "*** Note: this tags items with tag { 'Delete': 'True' } ***\n"
-        for volume in volume_data:
+        logging.error("\n\n")
+        logging.error("Ignoring any env flag for cleanup: %s" % (args.env))
+        logging.critical("*** Cleaning Volumes ***")
+        logging.critical("*** Note: this tags items with tag { 'Delete': 'True' } ***\n")
+        for volume in Global.volume_data:
             volume_count = volume_count + 1
-            logging.debug("")
-            logging.debug("volume_id: %s" % (volume_data[volume]['id']))
-            logging.debug("\tvolume_instance_id: %s" % (volume_data[volume]['instance_id']))
-            logging.debug("\tvolume_date: %s" % (volume_data[volume]['date']))
-        print "   *** Total Volumes To Delete: %s" % (volume_count)
+            logging.critical("")
+            logging.critical("volume_id: %s" % (Global.volume_data[volume]['id']))
+            logging.critical("\tvolume_instance_id: %s" % (Global.volume_data[volume]['instance_id']))
+            logging.critical("\tvolume_date: %s" % (Global.volume_data[volume]['date']))
+        logging.critical("   *** Total Volumes To Delete: %s" % (volume_count))
 
-    if args.type == "all" or args.type == "clean-ami" or args.type == "clean" or args.type == "clean-images" :
+    if args.type == "all" or args.type == "clean-ami" or args.type == "clean" or args.type == "clean-images":
         image_count = 0
-        logging.debug("\n\n")
-        logging.debug("Ignoring any env flag for cleanup: %s" % (args.env))
-        print "*** Cleaning Images ***"
-        for image in image_data:
+        logging.error("\n\n")
+        logging.error("Ignoring any env flag for cleanup: %s" % (args.env))
+        logging.critical("*** Cleaning Images ***")
+        for image in Global.image_data:
             image_count = image_count + 1
-            logging.debug("")
-            logging.debug("ami_id: %s" % (image_data[image]['id']))
-            logging.debug("\tami_name: %s" % (image_data[image]['name']))
-            logging.debug("\tami_attachment_id: %s" % (image_data[image]['date']))
-            logging.debug("\tami_snapshot_id: %s" % (image_data[image]['snapshot_id']))
-            logging.debug("\tami_persist: %s" % (image_data[image]['persist']))
-            logging.debug("\tami_build_method: %s" % (image_data[image]['build_method']))
+            logging.critical("")
+            logging.critical("ami_id: %s" % (Global.image_data[image]['id']))
+            logging.critical("\tami_name: %s" % (Global.image_data[image]['name']))
+            logging.critical("\tami_attachment_id: %s" % (Global.image_data[image]['date']))
+            logging.critical("\tami_snapshot_id: %s" % (Global.image_data[image]['snapshot_id']))
+            logging.critical("\tami_persist: %s" % (Global.image_data[image]['persist']))
+            logging.critical("\tami_build_method: %s" % (Global.image_data[image]['build_method']))
             # this is disabled for now until we're sure we want to auto delete AMI's
             # if not image_data[image]['persist']:
             #     for ami_snapshot in image_data[image]['snapshot_id']:
             #         delete_snapshot(ami_snapshot, 'delete_image')
             #     delete_image(image_data[image]['id'], image_data[image]['name'])
-        print "   *** Total Images Deregistered: %s" % (image_count)
+        logging.critical("   *** Total Images Deregistered: %s" % (image_count))
 
     if args.type == "all" or args.type == "create-snapshot" or args.type == "create-snapshots":
         snapshot_count = 0
-        logging.debug("\n\n")
-        print "*** Creating Snapshots ***"
-        for s_volume in snapshot_volumes:
-            logging.debug("")
-            logging.debug("\tsnapshot_volume['volume_id']: %s" % (snapshot_volumes[s_volume]['id']))
-            logging.debug("\tsnapshot_volume['instance_id']: %s" % (snapshot_volumes[s_volume]['instance_id']))
-            logging.debug("\tsnapshot_volume['date']: %s" % (snapshot_volumes[s_volume]['date']))
-            logging.debug("\tsnapshot_volume['desc']: %s" % (snapshot_volumes[s_volume]['desc']))
-            logging.debug("\tsnapshot_volume['old_desc']: %s" % (snapshot_volumes[s_volume]['old_desc']))
-            logging.debug("\tsnapshot_volume['persist']: %s" % (snapshot_volumes[s_volume]['persist']))
-            logging.debug("\tsnapshot_volume['hourly']: %s" % (snapshot_volumes[s_volume]['hourly']))
-            snapshot_count = snapshot_count +create_snapshot(snapshot_volumes[s_volume]['id'], snapshot_volumes[s_volume]['desc'], snapshot_volumes[s_volume]['old_desc'], snapshot_volumes[s_volume]['persist'])
-        print "   *** Total Volumes to Snapshot: %s" % (snapshot_count)
+        logging.error("\n\n")
+        logging.error("*** Creating Snapshots ***")
+        for s_volume in Global.snapshot_volumes:
+            logging.critical("")
+            logging.critical("\tsnapshot_volume['volume_id']: %s" % (Global.snapshot_volumes[s_volume]['id']))
+            logging.critical("\tsnapshot_volume['instance_id']: %s" % (Global.snapshot_volumes[s_volume]['instance_id']))
+            logging.critical("\tsnapshot_volume['date']: %s" % (Global.snapshot_volumes[s_volume]['date']))
+            logging.critical("\tsnapshot_volume['desc']: %s" % (Global.snapshot_volumes[s_volume]['desc']))
+            logging.critical("\tsnapshot_volume['old_desc']: %s" % (Global.snapshot_volumes[s_volume]['old_desc']))
+            logging.critical("\tsnapshot_volume['persist']: %s" % (Global.snapshot_volumes[s_volume]['persist']))
+            logging.critical("\tsnapshot_volume['hourly']: %s" % (Global.snapshot_volumes[s_volume]['hourly']))
+            snapshot_count = snapshot_count + Snapshot().create(ec2_client, Global.snapshot_volumes[s_volume]['id'], Global.snapshot_volumes[s_volume]['desc'], Global.snapshot_volumes[s_volume]['old_desc'], Global.snapshot_volumes[s_volume]['persist'])
+        logging.critical("   *** Total Volumes to Snapshot: %s" % (snapshot_count))
     exit(0)
