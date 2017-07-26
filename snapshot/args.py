@@ -3,7 +3,9 @@ from config import Globals
 
 
 class VAction(argparse.Action):
-    """ docstring """
+    '''
+        Class to configure verbosity level
+    '''
     def __call__(self, argparser, cmdargs, values, option_string=None):
         if values is None:
             values = '1'

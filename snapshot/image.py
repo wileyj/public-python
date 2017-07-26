@@ -6,7 +6,7 @@ Logger()
 
 
 class Image(object):
-    def find(self, env, account_id, client):
+    def find(self, client, env, account_id):
         '''
             find_images function
         '''
@@ -66,7 +66,7 @@ class Image(object):
         logging.critical("\tTotal Images tagged for deletion: %i" % (len(Globals.image_data)))
         return True
 
-    def delete(self, ami_id, ami_name, dry_run):
+    def delete(self, client, ami_id, ami_name, dry_run):
         '''
             deregister_image
         '''

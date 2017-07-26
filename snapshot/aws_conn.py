@@ -7,6 +7,9 @@ Logger()
 
 class conn():
     def __init__(self, service, region):
+        '''
+            Class to broker connection to aws
+        '''
         logging.error("Initiating Connection to service(%s) in region(%s)" % (service, region))
         client = boto3.client(service, region_name=region)
         self.client = client

@@ -6,7 +6,7 @@ Logger()
 
 
 class Instance(object):
-    def find_instances(self, env, dry_run, instance, client):
+    def find(self, client, env, dry_run, instance):
         '''
             find_instances function
         '''
