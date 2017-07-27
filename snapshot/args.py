@@ -81,14 +81,14 @@ class Args:
         parser.add_argument(
             '--retention',
             nargs='?',
-            default=Globals.default_retention,
+            default=7,
             type=int,
             help="Retention"
         )
         parser.add_argument(
             '--rotation',
             nargs='?',
-            default=Globals.default_rotation,
+            default=7,
             type=int,
             help="Rotation"
         )
