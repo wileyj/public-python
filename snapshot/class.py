@@ -7,6 +7,7 @@ from instance import Instance
 from volume import Volume
 from snapshot import Snapshot
 from image import Image
+from datetime import timedelta
 
 Logger()
 args = Args().args
@@ -21,7 +22,7 @@ if __name__ == "__main__":
         args.env = "staging"
     Logger().configure(args.verbose)
     # __all__ = ('snapshot', 'Logging')
-    __all__ = ('Logging')
+    __all__ = ('snapshot')
     logging = logging.getLogger(__name__)
 
     if args.volume and args.instance:
@@ -30,35 +31,36 @@ if __name__ == "__main__":
     if args.volume or args.instance:
         print "Defaulting to type 'create-snapshot' with inclusiong of arg: %s %s" % (args.instance, args.volume)
         args.type = "create-snapshot"
-    logging.error("")
-    logging.error("*** Timing ***")
-    logging.error("\tCurrent time: %i" % (Global.current_time))
-    logging.error("\tRetention: %i" % (args.retention))
-    logging.error("\tFull day in seconds: %i" % (Global.full_day))
-    logging.error("\tToday: %s" % (str(Global.today)))
-    logging.error("\tTomorrow: %s" % (str(Global.tomorrow)))
-    logging.error("\tYesterday: %s" % (str(Global.yesterday)))
-    logging.error("\t2 Weeks Ago: %s" % (str(Global.two_weeks)))
-    logging.error("\t4 Weeks Ago: %s" % (str(Global.four_weeks)))
-    logging.error("\t30 Days Ago: %s" % (str(Global.thirty_days)))
-    logging.error("\tRetention Time: %s" % (str(Global.retention_day)))
-    logging.error("\tStart Date: %s" % (str(Global.start_date)))
-    logging.error("\tShort Date: %s" % (Global.short_date))
-    logging.error("\tShort Hour: %s" % (Global.short_hour))
-    logging.error("")
-    logging.error("*** Defined Args ***")
-    logging.error("\targs.verbose: %s" % (args.verbose))
-    logging.error("\targs.type: %s" % (args.type))
-    logging.error("\targs.env: %s" % (args.env))
-    logging.error("\targs.volume: %s" % (args.volume))
-    logging.error("\targs.instance: %s" % (args.instance))
-    logging.error("\targs.retention: %s" % (args.retention))
-    logging.error("\targs.dry_run: %s" % (args.dry_run))
-    logging.error("\targs.region: %s" % (args.region))
-    logging.error("\targs.account_id: %s" % (args.account_id))
-    logging.error("\targs.rotation: %s" % (args.rotation))
-    logging.error("\targs.hourly: %s" % (args.hourly))
-    logging.error("\targs.persist: %s" % (args.persist))
+    retention_day = timedelta(days=args.retention)
+    start_date = Global.today - retention_day
+    logging.critical("*** Timing ***")
+    logging.critical("\tCurrent time: %i" % (Global.current_time))
+    logging.critical("\tRetention: %i" % (args.retention))
+    logging.critical("\tFull day in seconds: %i" % (Global.full_day))
+    logging.critical("\tToday: %s" % (str(Global.today)))
+    logging.critical("\tTomorrow: %s" % (str(Global.tomorrow)))
+    logging.critical("\tYesterday: %s" % (str(Global.yesterday)))
+    logging.critical("\t2 Weeks Ago: %s" % (str(Global.two_weeks)))
+    logging.critical("\t4 Weeks Ago: %s" % (str(Global.four_weeks)))
+    logging.critical("\t30 Days Ago: %s" % (str(Global.thirty_days)))
+    logging.critical("\tRetention Time: %s" % (str(Global.retention_day)))
+    logging.critical("\tStart Date: %s" % (str(start_date)))
+    logging.critical("\tShort Date: %s" % (Global.short_date))
+    logging.critical("\tShort Hour: %s" % (Global.short_hour))
+    logging.critical("")
+    logging.critical("*** Defined Args ***")
+    logging.critical("\targs.verbose: %s" % (args.verbose))
+    logging.critical("\targs.type: %s" % (args.type))
+    logging.critical("\targs.env: %s" % (args.env))
+    logging.critical("\targs.volume: %s" % (args.volume))
+    logging.critical("\targs.instance: %s" % (args.instance))
+    logging.critical("\targs.retention: %s" % (args.retention))
+    logging.critical("\targs.dry_run: %s" % (args.dry_run))
+    logging.critical("\targs.region: %s" % (args.region))
+    logging.critical("\targs.account_id: %s" % (args.account_id))
+    logging.critical("\targs.rotation: %s" % (args.rotation))
+    logging.critical("\targs.hourly: %s" % (args.hourly))
+    logging.critical("\targs.persist: %s" % (args.persist))
 
     Instance().find(ec2_client, args.env, args.dry_run, '')
     Volume().find(ec2_client, args.instance, args.volume, args.dry_run, args.hourly, args.persist)
@@ -71,7 +73,7 @@ if __name__ == "__main__":
         snapshot_count = 0
         logging.error("\n\n")
         logging.error("Ignoring any env flag for cleanup: %s" % (args.env))
-        logginer.error("*** Cleaning Snapshots ***")
+        logging.error("*** Cleaning Snapshots ***")
         for snapshot in Global.snapshot_data:
             if Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] > args.rotation and not Global.snapshot_data[snapshot]['persist'] and not Global.snapshot_data[snapshot]['id'] in Global.image_data:
                 logging.critical("")
