@@ -3,7 +3,20 @@ import time
 from datetime import datetime, timedelta
 
 
-class Globals(object):
+class Global(object):
+    env_map = {
+        'prd': 'prod',
+        'prod': 'prod',
+        'production': 'prod',
+        'live': 'prod',
+        'dev': 'dev',
+        'development': 'dev',
+        'qa': 'qa',
+        'stg': 'staging',
+        'staging': 'staging',
+        'stage': 'staging',
+        '*': '*'
+    }
     # default_rotation = 7
     # default_retention = 7
     volume_metric_mininum = 100

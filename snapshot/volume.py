@@ -1,4 +1,5 @@
 from config import Global
+from metrics import Metrics
 import logging
 from logger import Logger
 
@@ -6,17 +7,20 @@ Logger()
 
 
 class Volume(object):
-    def find(self, client, instance, volume, dry_run, hourly, persist):
+    def __init__(self, client):
+        self.client = client
+
+    def find(self, cloudwatch_client, instance, volume, hourly, persist):
         '''
             find_volumes function
         '''
         logging.critical("\n*** Retrieving volumes")
         if not instance and not volume:
-            my_volumes = client.describe_volumes()['Volumes']
+            my_volumes = self.client.describe_volumes()['Volumes']
         else:
             if instance:
                 my_volumes = sorted(
-                    client.describe_volumes(
+                    self.client.describe_volumes(
                         Filters=[{
                             'Name': 'volume-id',
                             'Values': Global.instance_data[instance]['volumes']
@@ -29,7 +33,7 @@ class Volume(object):
                 )
             else:
                 my_volumes = sorted(
-                    client.describe_volumes(
+                    self.client.describe_volumes(
                         Filters=[{
                             'Name': 'volume-id',
                             'Values': [volume]
@@ -72,7 +76,7 @@ class Volume(object):
                         'date': volume['CreateTime']
                     }
                 else:
-                    if Volume().is_candidate(volume['VolumeId'], attached['InstanceId']):
+                    if Metrics(cloudwatch_client).is_candidate(volume['VolumeId'], attached['InstanceId']):
                         logging.debug("\t\tCandidate Volume (%s, %s)" % (attached['InstanceId'], volume['VolumeId']))
                         logging.debug("\t\tTagging Volume for deletion (%s, %s)" % (attached['InstanceId'], volume['VolumeId']))
                         Global.volume_data[volume['VolumeId']] = {
@@ -85,10 +89,10 @@ class Volume(object):
                             'size': volume['Size'],
                             'date': volume['CreateTime']
                         }
-                        if not dry_run:
+                        if not Global.dry_run:
                             # logging.error("Tagging Volume %s with {'Delete': 'True'}" % (volume['VolumeId']))
                             logging.critical("Tagging Volume %s with {'Delete': 'True'}" % (volume['VolumeId']))
-                            # client.create_tags(
+                            # self.client.create_tags(
                             #     Resources=[volume['VolumeId']],
                             #     Tags=[{
                             #         'Key': 'Delete',
@@ -129,50 +133,3 @@ class Volume(object):
         logging.critical("\tTotal Volumes tagged for deletion: %i" % (len(Global.volume_data)))
         logging.critical("\tTotal Volumes tagged for backup: %i" % (len(Global.snapshot_volumes)))
         return True
-
-    def is_active(self, instance_id):
-        '''
-            Determine if Volume is attached to running instance
-        '''
-        logging.debug("\tChecking for disk usage on running host: %s" % (instance_id))
-        if instance_id in Global.instance_data and Global.instance_data[instance_id]['state'] == 'running':
-            return True
-        return False
-
-    def is_candidate(self, client, volume_id, instance_id):
-        '''
-            Make sure the volume is candidate for delete
-        '''
-        if Volume().is_active_volume(instance_id):
-            metrics = Volume().metrics(client, volume_id)
-            if len(metrics):
-                for metric in metrics:
-                    if metric['Minimum'] < Global.volume_metric_mininum:
-                        logging.debug("\tInactive Volume Tagging Volume for deletion: (%i, %s, %s, %s)" % (metric['Minimum'], Global.instance_data[instance_id]['name'], instance_id, volume_id))
-                        return True
-                    else:
-                        logging.debug("\tActive Volume - Ignoring for deletion: (%i, %s, %s, %s)" % (metric['Minimum'], Global.instance_data[instance_id]['name'], instance_id, volume_id))
-                        return False
-            else:
-                logging.debug("metrics not returned")
-                return False
-        else:
-            logging.debug("%s not active on %s" % (volume_id, instance_id))
-            return True
-
-    def metrics(self, client, volume_id):
-        '''
-            Get volume idle time on an individual volume over `start_date` to today
-        '''
-        volume_metrics_data = client.get_metric_statistics(
-            Namespace='AWS/EBS',
-            MetricName='VolumeIdleTime',
-            Dimensions=[{'Name': 'VolumeId', 'Value': volume_id}],
-            Period=3600,
-            StartTime=Global.two_weeks,
-            EndTime=Global.today,
-            Statistics=['Minimum'],
-            Unit='Seconds'
-        )
-        logging.debug("\t\tReturning datapoints: %s" % (Global.volume_metrics_data['Datapoints']))
-        return volume_metrics_data['Datapoints']
