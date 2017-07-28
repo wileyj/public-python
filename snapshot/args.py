@@ -1,5 +1,5 @@
 import argparse
-from config import Globals
+# from config import Global
 
 
 class VAction(argparse.Action):
@@ -35,7 +35,7 @@ class Args:
             ],
             nargs='?',
             metavar='',
-            default="",
+            default="clean-ami",
             help="type",
             # required=True
         )
@@ -50,7 +50,7 @@ class Args:
             ],
             nargs='?',
             metavar='',
-            default="us-east-1",
+            default="us-west-2",
             help="region",
             # required=True
         )

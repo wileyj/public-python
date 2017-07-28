@@ -7,14 +7,17 @@ Logger()
 
 
 class Snapshot(object):
-    def find(self, client, account_id, env):
+    def __init__(self, client):
+        self.client = client
+
+    def find(self, account_id, env):
         '''
             find_snapshots function
         '''
         logging.critical("*** Retrieving snapshots")
         count_deleted = 0
         my_snapshots = sorted(
-            client.describe_snapshots(
+            self.client.describe_snapshots(
                 Filters=[{
                     'Name': 'owner-id',
                     'Values': [account_id]
@@ -105,7 +108,7 @@ class Snapshot(object):
         logging.critical("\tTotal snapshots tagged for rotation: %i" % (len(Global.snapshot_data)))
         return True
 
-    def create(self, client, dry_run, region, volume_id, description, old_description, persist):
+    def create(self, region, volume_id, description, old_description, persist):
         '''
             Create snapshot of volume
         '''
@@ -126,12 +129,12 @@ class Snapshot(object):
                         logging.error("\t\tService: %s" % ("ebs"))
                         logging.error("\t\tPersist: %s" % (persist))
                         logging.error("\t\tCategory: %s" % ("snapshot"))
-                        # create_snap = client.create_snapshot(
+                        # create_snap = self.client.create_snapshot(
                         #     VolumeId=volume_id,
                         #     Description=description
                         # )
                         # logging.debug("\t Snapshot created: %s" % (create_snap['SnapshotId']))
-                        # client.create_tags(
+                        # self.client.create_tags(
                         #     Resources=[create_snap['SnapshotId']],
                         #     Tags=[{
                         #         'Key': 'Name',
@@ -174,14 +177,14 @@ class Snapshot(object):
             pass
         return 0
 
-    def delete(self, client, dry_run, snapshot_id, referrer):
+    def delete(self, snapshot_id, referrer):
         '''
             delete_snapshot
         '''
-        if not dry_run:
+        if not Global.dry_run:
             logging.critical("\tDeleting snapshot %s (count:%s :: persist:%s)" % (snapshot_id, Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'], Global.snapshot_data[snapshot_id]['persist']))
             Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']] = {'count': Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'] - 1}
-            # client.delete_snapshot(
+            # self.client.delete_snapshot(
             #     # DryRun=True,
             #     SnapshotId=snapshot_id
             # )

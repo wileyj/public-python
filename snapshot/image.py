@@ -1,4 +1,4 @@
-from config import Globals
+from config import Global
 import logging
 from logger import Logger
 
@@ -6,7 +6,10 @@ Logger()
 
 
 class Image(object):
-    def find(self, client, env, account_id):
+    def __init__(self, client):
+        self.client = client
+
+    def find(self, env, account_id):
         '''
             find_images function
         '''
@@ -15,7 +18,7 @@ class Image(object):
             logging.error("\tDiscarding env arg for image retrieval")
         count_images = 0
         my_images = sorted(
-            client.describe_images(
+            self.client.describe_images(
                 Owners=[account_id]
             )['Images'],
             key=lambda x: (
@@ -63,16 +66,16 @@ class Image(object):
                 else:
                     logging.debug("[ ACTIVE ]   %s ( %s )" % (x['ImageId'], x['Name']))
         logging.critical("\tTotal Images Found: %i" % (count_images))
-        logging.critical("\tTotal Images tagged for deletion: %i" % (len(Globals.image_data)))
+        logging.critical("\tTotal Images tagged for deletion: %i" % (len(Global.image_data)))
         return True
 
-    def delete(self, client, ami_id, ami_name, dry_run):
+    def delete(self, ami_id, ami_name):
         '''
             deregister_image
         '''
-        if not dry_run:
+        if not Global.dry_run:
             logging.critical("\t ( disabled ) - Deregistering Image: %s %s" % (ami_id, ami_name))
-            # client.deregister_image(
+            # self.client.deregister_image(
             #     # DryRun=True,
             #     ImageId=ami_id
             # )

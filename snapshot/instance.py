@@ -5,14 +5,19 @@ from logger import Logger
 Logger()
 
 
-class Instance(object):
-    def find(self, client, env, dry_run, instance):
+class Instance():
+    def __init__(self, client):
+        self.client = client
+
+    def find(self, env, instance):
         '''
             find_instances function
         '''
         logging.critical("*** Retrieving instances")
+        logging.critical("env: %s" % (env))
+        logging.critical("instance: %s" % (instance))
         Global.instances_vpc = sorted(
-            client.describe_instances(
+            self.client.describe_instances(
                 Filters=[{
                     'Name': 'vpc-id',
                     'Values': ['*']
@@ -30,9 +35,10 @@ class Instance(object):
             ),
             reverse=True
         )
+        logging.critical("Total vpc instances: %i" % (len(Global.instances_vpc)))
         if not instance:
             instances_all = sorted(
-                client.describe_instances(
+                self.client.describe_instances(
                     Filters=[{
                         'Name': 'instance-state-name',
                         'Values': ['running', 'stopped']
@@ -47,9 +53,10 @@ class Instance(object):
                 ),
                 reverse=True
             )
+            logging.critical("if Total instances_all: %i" % (len(instances_all)))
         else:
             instances_all = sorted(
-                client.describe_instances(
+                self.client.describe_instances(
                     Filters=[{
                         'Name': 'instance-state-name',
                         'Values': ['running', 'stopped']
@@ -64,7 +71,7 @@ class Instance(object):
                 ),
                 reverse=True
             )
-
+            logging.critical("else Total instances_all: %i" % (len(instances_all)))
         try:
             if len(instances_all) < 1:
                 logging.debug("instances_all returned zero results...")
@@ -72,11 +79,11 @@ class Instance(object):
         except:
             pass
         list_vpc = [item for item in Global.instances_vpc]
-        list_all = [item for item in Global.instances_all]
-        instance_without_vpc = [item for item in Global.instances_all if item not in Global.list_vpc]
+        list_all = [item for item in instances_all]
+        instance_without_vpc = [item for item in instances_all if item not in list_vpc]
         running_count = 0
         stopped_count = 0
-        for item in Global.instances_all:
+        for item in instances_all:
             t_name = ""
             t_env = ""
             t_vpc = ""
