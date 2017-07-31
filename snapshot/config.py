@@ -21,7 +21,6 @@ class Global(object):
     # default_retention = 7
     # arbitrary for now: need more research into what the value should actually be. 300 is not going to work
     volume_metric_mininum = 150
-    
     instance_data = {}
     image_data = {}
     map_images = {}
