@@ -58,7 +58,7 @@ class Args:
             '--account_id',
             nargs='?',
             metavar='',
-            default="307234534562",
+            default="",
             # required=True,
             help="account_id"
         )
