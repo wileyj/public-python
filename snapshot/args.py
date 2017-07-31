@@ -35,7 +35,7 @@ class Args:
             ],
             nargs='?',
             metavar='',
-            default="create-snapshot",
+            default="all",
             help="type",
             # required=True
         )

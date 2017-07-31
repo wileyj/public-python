@@ -7,9 +7,9 @@ Logger()
 
 
 class Volume(object):
-    def __init__(self, client):
+    def __init__(self, client, dry_run):
         self.client = client
-
+        self.dry_run = dry_run
     def find(self, cloudwatch_client, instance, volume, hourly, persist):
         '''
             find_volumes function
@@ -77,7 +77,7 @@ class Volume(object):
                         'date': volume['CreateTime']
                     }
                 else:
-                    if Metrics(cloudwatch_client).is_candidate(volume['VolumeId'], attached['InstanceId']):
+                    if Metrics(cloudwatch_client, self.dry_run).is_candidate(volume['VolumeId'], attached['InstanceId']):
                         logging.critical("\t\tCandidate Volume (%s, %s)" % (attached['InstanceId'], volume['VolumeId']))
                         logging.critical("\t\tTagging Volume for deletion (%s, %s)" % (attached['InstanceId'], volume['VolumeId']))
                         Global.volume_data[volume['VolumeId']] = {
@@ -90,7 +90,7 @@ class Volume(object):
                             'size': volume['Size'],
                             'date': volume['CreateTime']
                         }
-                        if not Global.dry_run:
+                        if not self.dry_run:
                             # logging.error("Tagging Volume %s with {'Delete': 'True'}" % (volume['VolumeId']))
                             logging.critical("Tagging Volume %s with {'Delete': 'True'}" % (volume['VolumeId']))
                             # self.client.create_tags(

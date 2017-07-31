@@ -68,13 +68,13 @@ if __name__ == "__main__":
     logging.critical("\targs.hourly: %s" % (args.hourly))
     logging.critical("\targs.persist: %s" % (args.persist))
 
-    Instance(ec2_client).find(args.env, '')
-    Volume(ec2_client).find(cloudwatch_client, args.instance, args.volume, args.hourly, args.persist)
+    Instance(ec2_client, args.dry_run).find(args.env, '')
+    Volume(ec2_client, args.dry_run).find(cloudwatch_client, args.instance, args.volume, args.hourly, args.persist)
     if args.type != "create-snapshot" or args.type != "create-snapshots":
-        Snapshot(ec2_client).find(args.account_id, args.env)
+        Snapshot(ec2_client, args.dry_run).find(args.account_id, args.env)
     if not args.volume and not args.instance:
         if args.type != "clean-snapshot" or args.type != "clean-snapshots" or args.type != "clean-volume" or args.type != "clean-volumes":
-            Image(ec2_client).find(args.env, args.account_id)
+            Image(ec2_client, args.dry_run).find(args.env, args.account_id)
     if args.type == "all" or args.type == "clean-snapshot" or args.type == "clean-snapshots" or args.type == "clean":
         snapshot_count = 0
         logging.error("\n\n")
@@ -100,12 +100,12 @@ if __name__ == "__main__":
                 logging.critical("\tDeleting %s - [ snap_count:%s, volume_count:%s, persist: %s ] [ vol: %s ]" % (Global.snapshot_data[snapshot]['id'], Global.snapshot_data[snapshot]['snap_count'], Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'], Global.snapshot_data[snapshot]['persist'], Global.snapshot_data[snapshot]['volume_id']))
                 if Global.snapshot_data[snapshot]['volume_id'] not in Global.all_volumes:
                     logging.debug("\tvol: %s snap: %s snap_count: %s rotate: %i" % (Global.snapshot_data[snapshot]['volume_id'], Global.snapshot_data[snapshot]['id'], Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'], args.rotation))
-                    ret_val = Snapshot().delete(Global.snapshot_data[snapshot]['id'], '')
+                    ret_val = Snapshot(ec2_client, args.dry_run).delete(Global.snapshot_data[snapshot]['id'], '')
                     Global.snapshot_count = Global.snapshot_count + ret_val
                     Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] = Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] - ret_val
                 else:
                     logging.debug("\tvol: %s snap: %s snap_count: %s rotate: %i" % (Global.snapshot_data[snapshot]['volume_id'], Global.snapshot_data[snapshot]['id'], Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'], args.rotation))
-                    ret_val = Snapshot().delete(Global.snapshot_data[snapshot]['id'], 'delete_snapshot')
+                    ret_val = Snapshot(ec2_client, args.dry_run).delete(Global.snapshot_data[snapshot]['id'], 'delete_snapshot')
                     Global.snapshot_count = Global.snapshot_count + ret_val
                     Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] = Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] - ret_val
             else:
@@ -161,6 +161,6 @@ if __name__ == "__main__":
             logging.critical("\tsnapshot_volume['old_desc']: %s" % (Global.snapshot_volumes[s_volume]['old_desc']))
             logging.critical("\tsnapshot_volume['persist']: %s" % (Global.snapshot_volumes[s_volume]['persist']))
             logging.critical("\tsnapshot_volume['hourly']: %s" % (Global.snapshot_volumes[s_volume]['hourly']))
-            snapshot_count = snapshot_count + Snapshot(ec2_client).create(args.region, Global.snapshot_volumes[s_volume]['id'], Global.snapshot_volumes[s_volume]['desc'], Global.snapshot_volumes[s_volume]['old_desc'], Global.snapshot_volumes[s_volume]['persist'])
+            snapshot_count = snapshot_count + Snapshot(ec2_client, args.dry_run).create(args.region, Global.snapshot_volumes[s_volume]['id'], Global.snapshot_volumes[s_volume]['desc'], Global.snapshot_volumes[s_volume]['old_desc'], Global.snapshot_volumes[s_volume]['persist'])
         logging.critical("   *** Total Volumes to Snapshot: %s" % (snapshot_count))
     exit(0)

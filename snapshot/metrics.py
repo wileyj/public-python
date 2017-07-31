@@ -6,8 +6,9 @@ Logger()
 
 
 class Metrics(object):
-    def __init__(self, client):
+    def __init__(self, client, dry_run):
         self.client = client
+        self.dry_run = dry_run
 
     def is_active(self, instance_id):
         '''
@@ -22,8 +23,8 @@ class Metrics(object):
         '''
             Make sure the volume is candidate for delete
         '''
-        if Metrics(self.client).is_active(instance_id):
-            metrics = Metrics(self.client).metrics(volume_id)
+        if Metrics(self.client, self.dry_run).is_active(instance_id):
+            metrics = Metrics(self.client, self.dry_run).metrics(volume_id)
             if len(metrics) > 0:
                 for metric in metrics:
                     if metric['Minimum'] < Global.volume_metric_mininum:

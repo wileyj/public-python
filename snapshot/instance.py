@@ -6,8 +6,9 @@ Logger()
 
 
 class Instance():
-    def __init__(self, client):
+    def __init__(self, client, dry_run):
         self.client = client
+        self.dry_run = dry_run
 
     def find(self, env, instance):
         '''
@@ -135,7 +136,7 @@ class Instance():
                 running_count = running_count + 1
             else:
                 stopped_count = stopped_count + 1
-                if not dry_run:
+                if not self.dry_run:
                     client.create_tags(
                         # DryRun=True,
                         Resources=[item['Instances'][0]['InstanceId']],

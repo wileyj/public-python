@@ -7,8 +7,9 @@ Logger()
 
 
 class Snapshot(object):
-    def __init__(self, client):
+    def __init__(self, client, dry_run):
         self.client = client
+        self.dry_run = dry_run
 
     def find(self, account_id, env):
         '''
@@ -123,23 +124,26 @@ class Snapshot(object):
         '''
             Create snapshot of volume
         '''
+        logging.critical("** Creating Snapshots")
         try:
             if Global.instance_data[Global.all_volumes[volume_id]['instance_id']]['environment']:
+                logging.critical("Instance: %s" % (Global.all_volumes[volume_id]['instance_id']))
+                logging.critical("Environment: %s" % (Global.instance_data[Global.all_volumes[volume_id]['instance_id']]['environment']))
                 if Global.instance_data[Global.all_volumes[volume_id]['instance_id']]['state'] == "running":
-                    if not Global.dry_run:
+                    if not self.dry_run:
                         logging.critical("\tCreating Snapshot of %s with Description: %s " % (volume_id, description))
-                        logging.error("\tCreating tags:")
-                        logging.error("\t\tName: %s" % (description))
-                        logging.error("\t\tVolume: %s" % (volume_id))
-                        logging.error("\t\tDepartpment: %s" % ("ops"))
-                        logging.error("\t\tInstanceId: %s" % (Global.all_volumes[volume_id]['instance_id']))
-                        logging.error("\t\tEnvironment: %s" % (Global.instance_data[Global.all_volumes[volume_id]['instance_id']]['environment']))
-                        logging.error("\t\tRegion: %s" % (region))
-                        logging.error("\t\tApplication: %s" % ("shared"))
-                        logging.error("\t\tRole: %s" % ("ec2"))
-                        logging.error("\t\tService: %s" % ("ebs"))
-                        logging.error("\t\tPersist: %s" % (persist))
-                        logging.error("\t\tCategory: %s" % ("snapshot"))
+                        logging.critical("\tCreating tags:")
+                        logging.critical("\t\tName: %s" % (description))
+                        logging.critical("\t\tVolume: %s" % (volume_id))
+                        logging.critical("\t\tDepartpment: %s" % ("ops"))
+                        logging.critical("\t\tInstanceId: %s" % (Global.all_volumes[volume_id]['instance_id']))
+                        logging.critical("\t\tEnvironment: %s" % (Global.instance_data[Global.all_volumes[volume_id]['instance_id']]['environment']))
+                        logging.critical("\t\tRegion: %s" % (region))
+                        logging.critical("\t\tApplication: %s" % ("shared"))
+                        logging.critical("\t\tRole: %s" % ("ec2"))
+                        logging.critical("\t\tService: %s" % ("ebs"))
+                        logging.critical("\t\tPersist: %s" % (persist))
+                        logging.critical("\t\tCategory: %s" % ("snapshot"))
                         # create_snap = self.client.create_snapshot(
                         #     VolumeId=volume_id,
                         #     Description=description
@@ -180,10 +184,10 @@ class Snapshot(object):
                         #     }]
                         # )
                         # logging.critical("\t\t Snapshot %s tags created" % (create_snap['SnapshotId']))
+                        return 1
                     else:
                         logging.critical("\t(dry-run) Creating Snapshot of %s with Description: %s " % (volume_id, description))
-
-                    return 1
+                        return 1
         except:
             pass
         return 0
@@ -192,7 +196,7 @@ class Snapshot(object):
         '''
             delete_snapshot
         '''
-        if not Global.dry_run:
+        if not self.dry_run:
             logging.critical("\tDeleting snapshot %s (count:%s :: persist:%s)" % (snapshot_id, Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'], Global.snapshot_data[snapshot_id]['persist']))
             Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']] = {'count': Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'] - 1}
             # self.client.delete_snapshot(

@@ -6,8 +6,9 @@ Logger()
 
 
 class Image(object):
-    def __init__(self, client):
+    def __init__(self, client, dry_run):
         self.client = client
+        self.dry_run = dry_run
 
     def find(self, env, account_id):
         '''
@@ -73,7 +74,7 @@ class Image(object):
         '''
             deregister_image
         '''
-        if not Global.dry_run:
+        if not self.dry_run:
             logging.critical("\t ( disabled ) - Deregistering Image: %s %s" % (ami_id, ami_name))
             # self.client.deregister_image(
             #     # DryRun=True,
