@@ -137,7 +137,7 @@ class Instance():
             else:
                 stopped_count = stopped_count + 1
                 if not self.dry_run:
-                    client.create_tags(
+                    self.client.create_tags(
                         # DryRun=True,
                         Resources=[item['Instances'][0]['InstanceId']],
                         Tags=[{

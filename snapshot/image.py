@@ -49,13 +49,13 @@ class Image(object):
                     if 'Ebs' in this and 'SnapshotId' in this['Ebs']:
                         # the following 4 lines make it so that ami snapshots are ignored
                         logging.critical("Found AMI snapshot: %s" % (this['Ebs']['SnapshotId']))
-                        if this['Ebs']['SnapshotId'] in Globals.snapshot_data:
+                        if this['Ebs']['SnapshotId'] in Global.snapshot_data:
                             print "\tRemoving AMI snapshot from snapshot_data - %s:%s" % (x['ImageId'], this['Ebs']['SnapshotId'])
-                            del Globals.snapshot_data[this['Ebs']['SnapshotId']]
+                            del Global.snapshot_data[this['Ebs']['SnapshotId']]
                         ami_snapshot_existing.append(this['Ebs']['SnapshotId'])
-                if not x['ImageId'] in Globals.map_images:
+                if not x['ImageId'] in Global.map_images:
                     logging.debug("[ INACTIVE ] image: %s ( %s )" % (x['ImageId'], x['Name']))
-                    Globals.image_data[x['ImageId']] = {
+                    Global.image_data[x['ImageId']] = {
                         'id': x['ImageId'],
                         'name': x['Name'],
                         'active': False,
@@ -76,10 +76,10 @@ class Image(object):
         '''
         if not self.dry_run:
             logging.critical("\t ( disabled ) - Deregistering Image: %s %s" % (ami_id, ami_name))
-            # self.client.deregister_image(
-            #     # DryRun=True,
-            #     ImageId=ami_id
-            # )
+            self.client.deregister_image(
+                DryRun=True,
+                ImageId=ami_id
+            )
         else:
             logging.critical("\t (dry run) ( disabled ) - Deregistering Image: %s %s" % (ami_id, ami_name))
         return True

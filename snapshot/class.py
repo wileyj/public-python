@@ -84,7 +84,7 @@ if __name__ == "__main__":
         for snapshot in Global.snapshot_data:
             logging.critical("found snapshot: %s" % (snapshot))
             if Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] > 0:
-            # if Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] > args.rotation and not Global.snapshot_data[snapshot]['persist'] and not Global.snapshot_data[snapshot]['id'] in Global.image_data:
+                # if Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] > args.rotation and not Global.snapshot_data[snapshot]['persist'] and not Global.snapshot_data[snapshot]['id'] in Global.image_data:
                 logging.critical("")
                 logging.error("snapshot id: %s" % (Global.snapshot_data[snapshot]['id']))
                 logging.error("\tsnap_vol: %s" % (Global.snapshot_data[snapshot]['volume_id']))

@@ -22,9 +22,9 @@ class Snapshot(object):
                 Filters=[{
                     'Name': 'owner-id',
                     'Values': [account_id]
-                    # }, {
-                    #     'Name': 'tag:Environment',
-                    #     'Values': [env]
+                }, {
+                    'Name': 'tag:Environment',
+                    'Values': [env]
                 }]
             )['Snapshots'],
             key=lambda x: (
@@ -44,11 +44,11 @@ class Snapshot(object):
                 logging.critical("\tInitializing empty key/val for %s" % (item['VolumeId']))
                 Global.snapshot_existing[item['VolumeId']] = {'snapshots': []}
             try:
-                # logging.critical("incrementing count value +1 for disk (%s)" % (Global.volume_snapshot_count[item['VolumeId']]))
                 Global.volume_snapshot_count[item['VolumeId']] = {'count': Global.volume_snapshot_count[item['VolumeId']]['count'] + 1}
+                logging.critical("incrementing count value +1 for disk (%s)" % (Global.volume_snapshot_count[item['VolumeId']]))
             except:
-                # logging.critical("setting count value = 1 for disk (%s)" % (Global.volume_snapshot_count[item['VolumeId']]))
                 Global.volume_snapshot_count[item['VolumeId']] = {'count': 1}
+                logging.critical("setting count value = 1 for disk (%s)" % (Global.volume_snapshot_count[item['VolumeId']]))
             epoch = int(item['StartTime'].strftime("%s"))
             diff = Global.current_time - epoch
             age = diff / Global.full_day
@@ -144,46 +144,48 @@ class Snapshot(object):
                         logging.critical("\t\tService: %s" % ("ebs"))
                         logging.critical("\t\tPersist: %s" % (persist))
                         logging.critical("\t\tCategory: %s" % ("snapshot"))
-                        # create_snap = self.client.create_snapshot(
-                        #     VolumeId=volume_id,
-                        #     Description=description
-                        # )
-                        # logging.debug("\t Snapshot created: %s" % (create_snap['SnapshotId']))
-                        # self.client.create_tags(
-                        #     Resources=[create_snap['SnapshotId']],
-                        #     Tags=[{
-                        #         'Key': 'Name',
-                        #         'Value': description
-                        #     }, {
-                        #         'Key': 'Volume',
-                        #         'Value': volume_id
-                        #     }, {
-                        #         'Key': 'Department',
-                        #         'Value': 'Ops'
-                        #     }, {
-                        #         'Key': 'Instance',
-                        #         'Value': Global.all_volumes[volume_id]['instance_id']
-                        #     }, {
-                        #         'Key': 'Environment',
-                        #         'Value': Global.instance_data[Global.all_volumes[volume_id]['instance_id']]['environment']
-                        #     }, {
-                        #         'Key': 'Region',
-                        #         'Value': region
-                        #     }, {
-                        #         'Key': 'Application',
-                        #         'Value': 'shared'
-                        #     }, {
-                        #         'Key': 'Role',
-                        #         'Value': 'ebs'
-                        #     }, {
-                        #         'Key': 'Service',
-                        #         'Value': 'ec2'
-                        #     }, {
-                        #         'Key': 'Category',
-                        #         'Value': 'snapshot'
-                        #     }]
-                        # )
-                        # logging.critical("\t\t Snapshot %s tags created" % (create_snap['SnapshotId']))
+                        create_snap = self.client.create_snapshot(
+                            # DryRun=True,
+                            VolumeId=volume_id,
+                            Description=description
+                        )
+                        logging.critical("\t Snapshot created: %s" % (create_snap['SnapshotId']))
+                        self.client.create_tags(
+                            # DryRun=True,
+                            Resources=[create_snap['SnapshotId']],
+                            Tags=[{
+                                'Key': 'Name',
+                                'Value': description
+                            }, {
+                                'Key': 'Volume',
+                                'Value': volume_id
+                            }, {
+                                'Key': 'Department',
+                                'Value': 'Ops'
+                            }, {
+                                'Key': 'Instance',
+                                'Value': Global.all_volumes[volume_id]['instance_id']
+                            }, {
+                                'Key': 'Environment',
+                                'Value': Global.instance_data[Global.all_volumes[volume_id]['instance_id']]['environment']
+                            }, {
+                                'Key': 'Region',
+                                'Value': region
+                            }, {
+                                'Key': 'Application',
+                                'Value': 'shared'
+                            }, {
+                                'Key': 'Role',
+                                'Value': 'ebs'
+                            }, {
+                                'Key': 'Service',
+                                'Value': 'ec2'
+                            }, {
+                                'Key': 'Category',
+                                'Value': 'snapshot'
+                            }]
+                        )
+                        logging.critical("\t\t Snapshot %s tags created" % (create_snap['SnapshotId']))
                         return 1
                     else:
                         logging.critical("\t(dry-run) Creating Snapshot of %s with Description: %s " % (volume_id, description))
@@ -199,10 +201,10 @@ class Snapshot(object):
         if not self.dry_run:
             logging.critical("\tDeleting snapshot %s (count:%s :: persist:%s)" % (snapshot_id, Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'], Global.snapshot_data[snapshot_id]['persist']))
             Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']] = {'count': Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'] - 1}
-            # self.client.delete_snapshot(
-            #     # DryRun=True,
-            #     SnapshotId=snapshot_id
-            # )
+            self.client.delete_snapshot(
+                DryRun=True,
+                SnapshotId=snapshot_id
+            )
         else:
             logging.critical("\t (dry-run) Deleting snapshot %s (count:%s :: persist:%s)" % (snapshot_id, Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'], Global.snapshot_data[snapshot_id]['persist']))
         return 1

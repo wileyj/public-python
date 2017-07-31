@@ -10,6 +10,7 @@ class Volume(object):
     def __init__(self, client, dry_run):
         self.client = client
         self.dry_run = dry_run
+
     def find(self, cloudwatch_client, instance, volume, hourly, persist):
         '''
             find_volumes function
