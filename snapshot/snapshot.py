@@ -32,18 +32,21 @@ class Snapshot(object):
             ),
             reverse=True
         )
+        logging.critical("snapshots discovered: %i" % (len(my_snapshots)))
         for item in my_snapshots:
             method = "undefined"
             try:
                 if Global.snapshot_existing[item['VolumeId']]:
-                    logging.error("Found existing key for in snapshot_existing for %s" % (item['VolumeId']))
+                    logging.critical("Found existing key for in snapshot_existing for %s" % (item['VolumeId']))
                     pass
             except Exception:
-                logging.error("\tInitializing empty key/val for %s" % (item['VolumeId']))
+                logging.critical("\tInitializing empty key/val for %s" % (item['VolumeId']))
                 Global.snapshot_existing[item['VolumeId']] = {'snapshots': []}
             try:
+                # logging.critical("incrementing count value +1 for disk (%s)" % (Global.volume_snapshot_count[item['VolumeId']]))
                 Global.volume_snapshot_count[item['VolumeId']] = {'count': Global.volume_snapshot_count[item['VolumeId']]['count'] + 1}
             except:
+                # logging.critical("setting count value = 1 for disk (%s)" % (Global.volume_snapshot_count[item['VolumeId']]))
                 Global.volume_snapshot_count[item['VolumeId']] = {'count': 1}
             epoch = int(item['StartTime'].strftime("%s"))
             diff = Global.current_time - epoch
@@ -66,16 +69,19 @@ class Snapshot(object):
                 "Created by CreateImage(i-",
                 item['Description']
             ).ratio()
+            logging.critical("MatchRatio (CreateImage): %i" % (match_ratio))
             if match_ratio < 0.53 or match_ratio > 0.54:
+                logging.critical("checking for method: %s" % (method))
                 # not a snapshot created by an ami
                 # if age > args.retention and method != "Packer":
                 if method != "Packer":
+                    logging.critical("Method != Packer")
                     count_deleted = count_deleted + 1
                     try:
-                        logging.debug("\t*** appending %s to  snapshot_exsting[ %s ]" % (item['SnapshotId'], item['VolumeId']))
+                        logging.critical("\t*** appending %s to  snapshot_exsting[ %s ]" % (item['SnapshotId'], item['VolumeId']))
                         Global.snapshot_existing[item['VolumeId']]['snapshots'].append(item['SnapshotId'])
                     except Exception:
-                        logging.debug("*** Problem appending %s to  snapshot_exsting[ %s ]" % (item['SnapshotId'], item['VolumeId']))
+                        logging.critical("*** Problem appending %s to  snapshot_exsting[ %s ]" % (item['SnapshotId'], item['VolumeId']))
                         pass
                     Global.snapshot_data[item['SnapshotId']] = {
                         'id': item['SnapshotId'],
@@ -89,8 +95,12 @@ class Snapshot(object):
                         'timestamp': snap_timestamp,
                         'snap_count': Global.volume_snapshot_count[item['VolumeId']]['count']
                     }
+                    logging.critical("\t\tAdded snapshot (%s) to snapshot_data dict" % (item['SnapshotId']))
+                else:
+                    logging.error("Found Packer snapshot")
             else:
                 # snapshot created by an AMI (generically, don't delete these, except in the case of clean-images)
+                logging.critical("AMI snapshot")
                 Global.image_snapshot[item['SnapshotId']] = {
                     'id': item['SnapshotId'],
                     'volume_id': item['VolumeId'],
@@ -103,6 +113,7 @@ class Snapshot(object):
                     'timestamp': snap_timestamp,
                     'snap_count': Global.volume_snapshot_count[item['VolumeId']]['count']
                 }
+                logging.critical("\t\tAdded snap(%s) to image_snapshot dict" % (item['SnapshotId']))
         logging.critical("\tTotal snapshots: %i" % (len(my_snapshots)))
         logging.critical("\tTotal snapshots to retain: %i" % (len(my_snapshots) - len(Global.snapshot_data)))
         logging.critical("\tTotal snapshots tagged for rotation: %i" % (len(Global.snapshot_data)))

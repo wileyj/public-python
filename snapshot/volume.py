@@ -45,6 +45,7 @@ class Volume(object):
                     reverse=True
                 )
         for volume in my_volumes:
+            logging.critical("\tChecking if volume is attached (%s)" % (volume['VolumeId']))
             tag_delete = False
             try:
                 for tag in volume['Tags']:
@@ -77,8 +78,8 @@ class Volume(object):
                     }
                 else:
                     if Metrics(cloudwatch_client).is_candidate(volume['VolumeId'], attached['InstanceId']):
-                        logging.debug("\t\tCandidate Volume (%s, %s)" % (attached['InstanceId'], volume['VolumeId']))
-                        logging.debug("\t\tTagging Volume for deletion (%s, %s)" % (attached['InstanceId'], volume['VolumeId']))
+                        logging.critical("\t\tCandidate Volume (%s, %s)" % (attached['InstanceId'], volume['VolumeId']))
+                        logging.critical("\t\tTagging Volume for deletion (%s, %s)" % (attached['InstanceId'], volume['VolumeId']))
                         Global.volume_data[volume['VolumeId']] = {
                             'id': volume['VolumeId'],
                             'attachment_id': attached['VolumeId'],
@@ -120,6 +121,8 @@ class Volume(object):
                             desc = desc.replace(")", "")
                             desc = desc.replace("(", "")
                             desc = desc.replace(" ", "-")
+                            logging.critical("\t\tBacking up Volume (%s) with description (%s)" % (volume['VolumeId'], Global.instance_data[attached['InstanceId']]['name']))
+                            logging.critical("\t************")
                             Global.snapshot_volumes[volume['VolumeId']] = {
                                 'id': volume['VolumeId'],
                                 'instance_id': attached['InstanceId'],

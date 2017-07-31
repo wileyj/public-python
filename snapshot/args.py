@@ -35,7 +35,7 @@ class Args:
             ],
             nargs='?',
             metavar='',
-            default="clean-ami",
+            default="create-snapshot",
             help="type",
             # required=True
         )
@@ -58,7 +58,8 @@ class Args:
             '--account_id',
             nargs='?',
             metavar='',
-            default="",
+            default="307234534562",
+            # required=True,
             help="account_id"
         )
         parser.add_argument(

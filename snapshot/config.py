@@ -19,7 +19,9 @@ class Global(object):
     }
     # default_rotation = 7
     # default_retention = 7
-    volume_metric_mininum = 100
+    # arbitrary for now: need more research into what the value should actually be. 300 is not going to work
+    volume_metric_mininum = 150
+    
     instance_data = {}
     image_data = {}
     map_images = {}
