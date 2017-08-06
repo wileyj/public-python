@@ -9,10 +9,6 @@ from snapshot import Snapshot
 from image import Image
 from datetime import timedelta
 
-# Logger()
-# args = Args().args
-# ec2_client = conn('ec2', args.region)
-# cloudwatch_client = conn('cloudwatch', args.region)
 
 if __name__ == "__main__":
     Logger()
@@ -101,12 +97,12 @@ if __name__ == "__main__":
                 if Global.snapshot_data[snapshot]['volume_id'] not in Global.all_volumes:
                     logging.debug("\tvol: %s snap: %s snap_count: %s rotate: %i" % (Global.snapshot_data[snapshot]['volume_id'], Global.snapshot_data[snapshot]['id'], Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'], args.rotation))
                     ret_val = Snapshot(ec2_client, args.dry_run).delete(Global.snapshot_data[snapshot]['id'], '')
-                    Global.snapshot_count = Global.snapshot_count + ret_val
+                    snapshot_count = snapshot_count + ret_val
                     Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] = Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] - ret_val
                 else:
                     logging.debug("\tvol: %s snap: %s snap_count: %s rotate: %i" % (Global.snapshot_data[snapshot]['volume_id'], Global.snapshot_data[snapshot]['id'], Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'], args.rotation))
                     ret_val = Snapshot(ec2_client, args.dry_run).delete(Global.snapshot_data[snapshot]['id'], 'delete_snapshot')
-                    Global.snapshot_count = Global.snapshot_count + ret_val
+                    snapshot_count = snapshot_count + ret_val
                     Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] = Global.volume_snapshot_count[Global.snapshot_data[snapshot]['volume_id']]['count'] - ret_val
             else:
                 logging.critical("")
@@ -132,6 +128,8 @@ if __name__ == "__main__":
         logging.error("\n\n")
         logging.error("Ignoring any env flag for cleanup: %s" % (args.env))
         logging.critical("*** Cleaning Images ***")
+        logging.critical("Include_ami: %s" % (args.include_ami))
+        logging.critical("Images found: %i" % (len(Global.image_data)))
         for image in Global.image_data:
             image_count = image_count + 1
             logging.critical("")
@@ -142,11 +140,13 @@ if __name__ == "__main__":
             logging.critical("\tami_persist: %s" % (Global.image_data[image]['persist']))
             logging.critical("\tami_build_method: %s" % (Global.image_data[image]['build_method']))
             # this is disabled for now until we're sure we want to auto delete AMI's
-            # if not image_data[image]['persist']:
-            #     for ami_snapshot in image_data[image]['snapshot_id']:
-            #         delete_snapshot(ami_snapshot, 'delete_image')
-            #     delete_image(image_data[image]['id'], image_data[image]['name'])
-        logging.critical("   *** Total Images Deregistered: %s" % (image_count))
+            if args.include_ami:
+                if Global.image_data[image]['persist'] != "True":
+                    for ami_snapshot in Global.image_data[image]['snapshot_id']:
+                        Snapshot(ec2_client, args.dry_run).delete(ami_snapshot, 'delete_snapshot')
+                        Image(ec2_client, args.dry_run).find(Global.image_data[image]['id'], Global.image_data[image]['name'])
+                        # delete_image(image_data[image]['id'], image_data[image]['name'])
+                logging.critical("   *** Total Images Deregistered: %s" % (image_count))
 
     if args.type == "all" or args.type == "create-snapshot" or args.type == "create-snapshots":
         snapshot_count = 0
