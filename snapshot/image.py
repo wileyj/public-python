@@ -33,17 +33,25 @@ class Image(object):
             # set_buildmethod = False
             set_persist = False
             set_buildmethod = "undefined"
+            logging.critical("\n****\t checking image: %s" % (x['Name']))
             try:
                 for t in x['Tags']:
                     if t['Key'] == "Persist":
-                        set_persist = t['Value']
-                        logging.debug("\tFound Persist Tag (%s) in image (%s)" % (set_persist, x['ImageId']))
+                        if t['Value'] is '':
+                            set_persist = "False"
+                        else:
+                            set_persist = t['Value']
+                        logging.critical("\tFound Persist Tag (%s) in image (%s)" % (set_persist, x['ImageId']))
                     if t['Key'] == "BuildMethod":
                         set_buildmethod = t['Value']
+                print "1 - Using set_persist(%s)" % (set_persist)
             except:
-                set_persist = False
+                set_persist = "False"
                 set_buildmethod = "undefined"
-            if set_persist is False:
+            print "2 - Using set_persist(%s)" % (set_persist)
+            logging.critical("*** \tset_persist:%s:" % (set_persist))
+            if set_persist != "True":
+                logging.critical("*** \tProcessing image (%s)" % (set_persist))
                 ami_snapshot_existing = []
                 for index, this in enumerate(x['BlockDeviceMappings'], start=0):
                     if 'Ebs' in this and 'SnapshotId' in this['Ebs']:
@@ -54,7 +62,7 @@ class Image(object):
                             del Global.snapshot_data[this['Ebs']['SnapshotId']]
                         ami_snapshot_existing.append(this['Ebs']['SnapshotId'])
                 if not x['ImageId'] in Global.map_images:
-                    logging.debug("[ INACTIVE ] image: %s ( %s )" % (x['ImageId'], x['Name']))
+                    logging.critical("[ INACTIVE ] image: %s ( %s )" % (x['ImageId'], x['Name']))
                     Global.image_data[x['ImageId']] = {
                         'id': x['ImageId'],
                         'name': x['Name'],
@@ -66,6 +74,9 @@ class Image(object):
                     }
                 else:
                     logging.debug("[ ACTIVE ]   %s ( %s )" % (x['ImageId'], x['Name']))
+            else:
+                logging.critical("###\t set_persist not matching True")
+            print "3 - Using set_persist(%s)" % (set_persist)
         logging.critical("\tTotal Images Found: %i" % (count_images))
         logging.critical("\tTotal Images tagged for deletion: %i" % (len(Global.image_data)))
         return True
@@ -76,10 +87,10 @@ class Image(object):
         '''
         if not self.dry_run:
             logging.critical("\t ( disabled ) - Deregistering Image: %s %s" % (ami_id, ami_name))
-            self.client.deregister_image(
-                DryRun=True,
-                ImageId=ami_id
-            )
+            # self.client.deregister_image(
+            #     # DryRun=True,
+            #     ImageId=ami_id
+            # )
         else:
             logging.critical("\t (dry run) ( disabled ) - Deregistering Image: %s %s" % (ami_id, ami_name))
         return True

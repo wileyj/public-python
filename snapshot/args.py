@@ -123,6 +123,11 @@ class Args:
             action='store_true',
             help="DryRun"
         )
+        parser.add_argument(
+            '--include-ami',
+            action='store_true',
+            help="Include unused and old AMI's in cleanup. This *WILL* delete old AMI's"
+        )
         self.args = parser.parse_args()
 
         if not self.args.type:

@@ -202,7 +202,7 @@ class Snapshot(object):
             logging.critical("\tDeleting snapshot %s (count:%s :: persist:%s)" % (snapshot_id, Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'], Global.snapshot_data[snapshot_id]['persist']))
             Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']] = {'count': Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'] - 1}
             self.client.delete_snapshot(
-                DryRun=True,
+                # DryRun=True,
                 SnapshotId=snapshot_id
             )
         else:
