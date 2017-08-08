@@ -115,6 +115,7 @@ class Snapshot(object):
                     'snap_count': Global.volume_snapshot_count[item['VolumeId']]['count']
                 }
                 logging.critical("\t\tAdded snap(%s) to image_snapshot dict" % (item['SnapshotId']))
+
         logging.critical("\tTotal snapshots: %i" % (len(my_snapshots)))
         logging.critical("\tTotal snapshots to retain: %i" % (len(my_snapshots) - len(Global.snapshot_data)))
         logging.critical("\tTotal snapshots tagged for rotation: %i" % (len(Global.snapshot_data)))
@@ -198,13 +199,16 @@ class Snapshot(object):
         '''
             delete_snapshot
         '''
+
         if not self.dry_run:
-            logging.critical("\tDeleting snapshot %s (count:%s :: persist:%s)" % (snapshot_id, Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'], Global.snapshot_data[snapshot_id]['persist']))
+            # logging.critical("\tDeleting snapshot %s (count:%s :: persist:%s)" % (snapshot_id, Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'], Global.snapshot_data[snapshot_id]['persist']))
+            logging.critical("\t Deleting snapshot %s" % (snapshot_id))
             Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']] = {'count': Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'] - 1}
             self.client.delete_snapshot(
                 # DryRun=True,
                 SnapshotId=snapshot_id
             )
         else:
-            logging.critical("\t (dry-run) Deleting snapshot %s (count:%s :: persist:%s)" % (snapshot_id, Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'], Global.snapshot_data[snapshot_id]['persist']))
+            # logging.critical("\t (dry-run) Deleting snapshot %s (count:%s :: persist:%s)" % (snapshot_id, Global.volume_snapshot_count[Global.snapshot_data[snapshot_id]['volume_id']]['count'], Global.snapshot_data[snapshot_id]['persist']))
+            logging.critical("\t (dry-run) Deleting snapshot %s" % (snapshot_id))
         return 1
