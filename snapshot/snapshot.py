@@ -48,7 +48,7 @@ class Snapshot(object):
                 logging.critical("incrementing count value +1 for disk (%s)" % (Global.volume_snapshot_count[item['VolumeId']]))
             except:
                 Global.volume_snapshot_count[item['VolumeId']] = {'count': 1}
-                logging.critical("setting count value = 1 for disk (%s)" % (Global.volume_snapshot_count[item['VolumeId']]))
+                logging.error("setting count value = 1 for disk (%s)" % (Global.volume_snapshot_count[item['VolumeId']]))
             epoch = int(item['StartTime'].strftime("%s"))
             diff = Global.current_time - epoch
             age = diff / Global.full_day
@@ -70,7 +70,7 @@ class Snapshot(object):
                 "Created by CreateImage(i-",
                 item['Description']
             ).ratio()
-            logging.critical("MatchRatio (CreateImage): %i" % (match_ratio))
+            logging.debug("MatchRatio (CreateImage): %i" % (match_ratio))
             if match_ratio < 0.53 or match_ratio > 0.54:
                 logging.critical("checking for method: %s" % (method))
                 # not a snapshot created by an ami
