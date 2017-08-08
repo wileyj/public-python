@@ -144,7 +144,7 @@ if __name__ == "__main__":
                 if Global.image_data[image]['persist'] != "True":
                     for ami_snapshot in Global.image_data[image]['snapshot_id']:
                         Snapshot(ec2_client, args.dry_run).delete(ami_snapshot, 'delete_snapshot')
-                        Image(ec2_client, args.dry_run).find(Global.image_data[image]['id'], Global.image_data[image]['name'])
+                        Image(ec2_client, args.dry_run).delete(Global.image_data[image]['id'], Global.image_data[image]['name'])
                         # delete_image(image_data[image]['id'], image_data[image]['name'])
                 logging.critical("   *** Total Images Deregistered: %s" % (image_count))
 

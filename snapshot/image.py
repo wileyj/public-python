@@ -15,6 +15,7 @@ class Image(object):
             find_images function
         '''
         logging.critical("*** Retrieving images")
+        logging.critical("*** Using account_id: %s" % (account_id))
         if env is not "*":
             logging.error("\tDiscarding env arg for image retrieval")
         count_images = 0
@@ -44,11 +45,9 @@ class Image(object):
                         logging.critical("\tFound Persist Tag (%s) in image (%s)" % (set_persist, x['ImageId']))
                     if t['Key'] == "BuildMethod":
                         set_buildmethod = t['Value']
-                print "1 - Using set_persist(%s)" % (set_persist)
             except:
                 set_persist = "False"
                 set_buildmethod = "undefined"
-            print "2 - Using set_persist(%s)" % (set_persist)
             logging.critical("*** \tset_persist:%s:" % (set_persist))
             if set_persist != "True":
                 logging.critical("*** \tProcessing image (%s)" % (set_persist))
@@ -74,8 +73,8 @@ class Image(object):
                     }
                 else:
                     logging.debug("[ ACTIVE ]   %s ( %s )" % (x['ImageId'], x['Name']))
-            else:
-                logging.critical("###\t set_persist not matching True")
+            # else:
+            #     logging.critical("###\t set_persist not matching True")
             print "3 - Using set_persist(%s)" % (set_persist)
         logging.critical("\tTotal Images Found: %i" % (count_images))
         logging.critical("\tTotal Images tagged for deletion: %i" % (len(Global.image_data)))
