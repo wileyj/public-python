@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+from audio import HandBrakeAudioInfo
 
 
 class FFmpegStreamInfo(object):
@@ -13,12 +14,28 @@ class FFmpegStreamInfo(object):
 
 
 class HandBrake():
+    def parse_handbrake_track_info(self, output_lines, start_index, info_cls):
+        prefix = "    + "
+        prefix_len = len(prefix)
+        tracks = []
+        i = start_index + 1
+        while i < len(output_lines) and output_lines[i].startswith(prefix):
+            info_str = output_lines[i][prefix_len:]
+            info = info_cls(info_str)
+            tracks.append(info)
+            i += 1
+        return (i, tracks)
 
     def parse_scan_output(self, input):
         lines = input.splitlines()
         i = 0
         while i < len(lines):
-            print "Line: %s" % (lines[i])
+            if lines[i] == "  + audio tracks:":
+                logging.critical("Found HandBrake audio track info")
+                logging.critical("Line: %s" % (lines[i]))
+                i, hb_audio_tracks = HandBrake().parse_handbrake_track_info(lines, i, HandBrakeAudioInfo)
+                logging.debug("HandBrake: %d audio track(s)", len(hb_audio_tracks))
+                # continue
             i += 1
         return True
 
