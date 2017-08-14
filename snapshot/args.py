@@ -58,7 +58,6 @@ class Args:
             '--account_id',
             nargs='?',
             metavar='',
-            default="",
             # required=True,
             help="account_id"
         )
@@ -129,8 +128,7 @@ class Args:
             help="Include unused and old AMI's in cleanup. This *WILL* delete old AMI's"
         )
         self.args = parser.parse_args()
-
-        if not self.args.type:
+        if not self.args.type or not self.args.account_id:
             print parser.print_help()
             exit(3)
 
