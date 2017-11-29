@@ -4,6 +4,7 @@ import argparse
 import re
 import errno
 import stat
+import ctypes
 from shutil import copyfile, copymode
 from subprocess import Popen, PIPE
 abspath = os.path.abspath(__file__)
@@ -11,6 +12,7 @@ dname = os.path.dirname(abspath)
 os.chdir(dname)
 cwd = os.getcwd()
 libs = {}
+fstab_lines = []
 jail_root = "/export/jail"
 empty_files = [
     "/etc/zprofile.save",
@@ -52,6 +54,30 @@ device_list = [
         'minor': 9
     }
 ]
+mounts = [
+    {
+        'source': 'proc',
+        'dest': '/export/jail/proc',
+        'fstype': 'proc',
+        'fsoptions': '',
+        'freq': 0,
+        'passno': 0
+    }, {
+        'source': 'sysfs',
+        'dest': '/export/jail/sys',
+        'fstype': 'sysfs',
+        'fsoptions': '',
+        'freq': 0,
+        'passno': 0
+    }, {
+        'source': 'devpts',
+        'dest': '/export/jail/dev/pts',
+        'fstype': 'devpts',
+        'fsoptions': 'seclabel,gid=5,mode=620,ptmxmode=000',
+        'freq': 0,
+        'passno': 0
+    }
+]
 packages = [
     {
         'binary': '/usr/bin/host',
@@ -79,6 +105,121 @@ packages = [
         'package': 'telnet'
     }
 ]
+sshd = """
+#%PAM-1.0
+auth     required pam_sepermit.so
+auth       include      password-auth
+account    required     pam_nologin.so
+account    include      password-auth
+password   include      password-auth
+# pam_selinux.so close should be the first session rule
+session    required     pam_selinux.so close
+session    required     pam_loginuid.so
+# pam_selinux.so open should only be followed by sessions to be executed in the user context
+session    required     pam_selinux.so open env_params
+session    optional     pam_keyinit.so force revoke
+session    include      password-auth
+session required pam_chroot.so
+"""
+zshenv = """
+#
+# /etc/zshenv is sourced on all invocations of the
+# shell, unless the -f option is set.  It should
+# contain commands to set the command search path,
+# plus other important environment variables.
+# .zshenv should not contain commands that produce
+# output or assume the shell is attached to a tty.
+#
+
+export PATH=/usr/bin:/bin
+alias bindkey=""
+alias compcall=""
+alias compctl=""
+alias compsys=""
+alias source=""
+alias vared=""
+alias zle=""
+alias bg=""
+
+disable compgroups
+disable compquote
+disable comptags
+disable comptry
+disable compvalues
+disable pwd
+disable alias
+disable autoload
+disable break
+disable builtin
+disable command
+disable comparguments
+disable compcall
+disable compctl
+disable compdescribe
+disable continue
+disable declare
+disable dirs
+disable disown
+disable echo
+disable echotc
+disable echoti
+disable emulate
+disable enable
+disable eval
+disable exec
+disable export
+disable false
+disable float
+disable functions
+disable getln
+disable getopts
+disable hash
+disable integer
+disable let
+disable limit
+disable local
+disable log
+disable noglob
+disable popd
+disable print
+disable pushd
+disable pushln
+disable read
+disable readonly
+disable rehash
+disable sched
+disable set
+disable setopt
+disable shift
+disable source
+disable suspend
+disable test
+disable times
+disable trap
+disable true
+disable ttyctl
+disable type
+disable typeset
+disable ulimit
+disable umask
+disable unalias
+disable unfunction
+disable unhash
+disable unlimit
+disable unset
+disable unsetopt
+disable vared
+disable whence
+disable where
+disable which
+disable zcompile
+disable zformat
+disable zle
+disable zmodload
+disable zparseopts
+disable zregexparse
+disable zstyle
+"""
 print "cwd: %s" % (cwd)
 
 
@@ -86,7 +227,16 @@ def ldd(binary):
     # once we have the libs, we send them to copy_libs
     cmd = "/usr/bin/ldd " + binary
     print "running command: %s" % (cmd)
-    return run_cmd(cmd)
+    return get_libs(run_cmd(cmd))
+    # return run_cmd(cmd)
+
+
+def mount(source, target, fs, options=''):
+    ret = ctypes.CDLL('libc.so.6', use_errno=True).mount(source, target, fs, 0, options)
+    if ret < 0:
+        errno = ctypes.get_errno()
+        raise RuntimeError("Error mounting {} ({}) on {} with options '{}': {}".
+                           format(source, fs, target, options, os.strerror(errno)))
 
 
 def create_symlink(source, target):
@@ -183,17 +333,47 @@ def get_libs(p):
         return False
 
 
+def remove_suid():
+    cmd = 'find /export/jail ! -path "*/proc*" -perm -4000 -type f'
+    stdout = run_cmd(cmd).communicate()
+    suid_list = str(stdout[0]).split("\n")[:-1]
+    for item in suid_list:
+        print "Line: %s" % (item)
+        # chmod u-s item
+    return True
+
+
 def run_cmd(cmd):
     print "run_cmd; %s" % (cmd)
     p = Popen(cmd, shell=True, stdout=PIPE)
     p.wait()
-    return get_libs(p)
+    return p
 
 
 def yum_install(package):
     print "Installing package: %s" % (package)
     p = Popen("yum install -y " + package, shell=True, stdout=PIPE)
     return p.returncode
+
+
+def check_fstab(lines):
+    f = open('/etc/fstab-new', 'r')
+    w = open('/etc/fstab-new', 'a')
+    g = f.readlines()
+    f.close()
+    for item in lines:
+        matched = 0
+        print "item: %s" % (item)
+        token = item.split("\t")
+        for line in g:
+            # print "line: %s" % (line.strip())
+            if re.search("^" + token[0] + "\s+" + token[1], line) is not None:
+                print "Matched: %s" % (token[0])
+                matched = 1
+                break
+        if matched != 1:
+            w.write(item + "\n")
+    w.close()
 
 
 if __name__ == "__main__":
@@ -219,11 +399,17 @@ if __name__ == "__main__":
             if not create_dir(jail_root + item):
                 print "Failed to create source dir: %s" % (jail_root + item)
                 sys.exit(2)
+    for fsmount in mounts:
+        if not os.path.ismount(fsmount['dest']):
+            print "mount: %s" % (fsmount['source'])
+            mount(fsmount['source'], fsmount['dest'], fsmount['fstype'], fsmount['fsoptions'])
+            # check /etc/fstab for existing entry
+            # proc\t/export/jail/proc\tproc\tnone\t0 0
+            fstab_lines.append(fsmount['source'] + "\t" + fsmount['dest'] + "\t" + fsmount['fstype'] + "\t" + fsmount['fsoptions'] + "\t0 0")
     for filename in empty_files:
         write_file(filename, "")
     for device in device_list:
         dev_dir = os.path.dirname(jail_root + device['name'])
-
         print "dev_dir: %s" % (dev_dir)
         if not os.path.exists(dev_dir):
             print "Source Missing: %s" % (dev_dir)
@@ -244,6 +430,9 @@ if __name__ == "__main__":
     else:
         for item in packages:
             print "checking if %s exists" % (item['binary'])
+            if not os.path.exists(item['binary']):
+                print "Installing package: %s" % (item['package'])
+                run_cmd("yum install -y " + item['package'])
             if os.path.exists(item['binary']):
                 ldd(item['binary'])
                 if not os.path.exists(jail_root + os.path.dirname(item['binary'])):
@@ -304,4 +493,10 @@ if __name__ == "__main__":
                     libs[lib]['base_path_target'] + "/" + libs[lib]['name'],
                     base_path_target + "/" + libs[lib]['name']
                 )
+    # ???
+    # mount --bind /dev /export/jail/dev
+    # mount --bind /sys /export/jail/sys
+    remove_suid()
+    write_file("/tmp/pam-sshd", sshd)
+    write_file("/tmp/zshenv", zshenv)
     write_file("/etc/sysconfig/chroot_setup", "1")
