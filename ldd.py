@@ -15,17 +15,49 @@ libs = {}
 fstab_lines = []
 jail_root = "/export/jail"
 empty_files = [
-    "/etc/zprofile.save",
-    "/etc/zlogout.save",
-    "/etc/zshrc.save",
-    "/etc/profile.d/lang.sh.save",
-    "/etc/profile.save"
+    "/etc/zprofile",
+    "/etc/zlogout",
+    "/etc/zshrc"
 ]
-dir_list = [
+create_dir_list = [
     "/home/rzshuser/.ssh",
+    "/lib64",
+    "/usr/share/terminfo/x",
+    "/usr/lib64",
     "/dev/pts",
     "/proc",
-    "/sys"
+    "/sys",
+    "/etc",
+    "/etc/security"
+]
+copy_file_list = [
+    "/etc/nsswitch.conf",
+    "/etc/hosts",
+    "/etc/passwd",
+    "/etc/group",
+    "/etc/resolv.conf",
+    "/etc/system-release"
+]
+copy_dir_list = [
+    {
+        "source": "/lib64/libnss*",
+        "dest": jail_root + "/lib64/"
+    }, {
+        "source": "/usr/lib64/libnss*",
+        "dest": jail_root + "/usr/lib64/"
+    }, {
+        "source": "/etc/security/*",
+        "dest": jail_root + "/etc/security/"
+    }, {
+        "source": "/usr/share/terminfo/x/*",
+        "dest": jail_root + "/usr/share/terminfo/x/"
+    }, {
+        "source": "/usr/lib64/zsh",
+        "dest": jail_root + "/usr/lib64/"
+    }, {
+        "source": "/usr/lib64/ld-linux*",
+        "dest": jail_root + "/lib64/"
+    }
 ]
 device_list = [
     {
@@ -86,7 +118,7 @@ packages = [
         'binary': '/bin/ping',
         'package': 'iputils'
     }, {
-        'binary': '/bin/rzsh',
+        'binary': '/bin/zsh',
         'package': 'zsh'
     }, {
         'binary': '/bin/traceroute',
@@ -105,22 +137,13 @@ packages = [
         'package': 'telnet'
     }
 ]
-sshd = """
-#%PAM-1.0
-auth     required pam_sepermit.so
-auth       include      password-auth
-account    required     pam_nologin.so
-account    include      password-auth
-password   include      password-auth
-# pam_selinux.so close should be the first session rule
-session    required     pam_selinux.so close
-session    required     pam_loginuid.so
-# pam_selinux.so open should only be followed by sessions to be executed in the user context
-session    required     pam_selinux.so open env_params
-session    optional     pam_keyinit.so force revoke
-session    include      password-auth
-session required pam_chroot.so
-"""
+pam_sshd_lines = [
+    "session    required    pam_chroot.so"
+]
+pam_sshd_file = "/etc/pam.d/sshd"
+fstab_file = "/etc/fstab"
+zshenv_file = "/etc/zshenv"
+
 zshenv = """
 #
 # /etc/zshenv is sourced on all invocations of the
@@ -224,11 +247,9 @@ print "cwd: %s" % (cwd)
 
 
 def ldd(binary):
-    # once we have the libs, we send them to copy_libs
     cmd = "/usr/bin/ldd " + binary
     print "running command: %s" % (cmd)
     return get_libs(run_cmd(cmd))
-    # return run_cmd(cmd)
 
 
 def mount(source, target, fs, options=''):
@@ -344,7 +365,7 @@ def remove_suid():
 
 
 def run_cmd(cmd):
-    print "run_cmd; %s" % (cmd)
+    print "runing command: %s" % (cmd)
     p = Popen(cmd, shell=True, stdout=PIPE)
     p.wait()
     return p
@@ -357,21 +378,43 @@ def yum_install(package):
 
 
 def check_fstab(lines):
-    f = open('/etc/fstab-new', 'r')
-    w = open('/etc/fstab-new', 'a')
+    f = open(fstab_file, 'r')
+    w = open(fstab_file, 'a')
     g = f.readlines()
     f.close()
     for item in lines:
         matched = 0
         print "item: %s" % (item)
-        token = item.split("\t")
+        token = item.split()
         for line in g:
-            # print "line: %s" % (line.strip())
             if re.search("^" + token[0] + "\s+" + token[1], line) is not None:
                 print "Matched: %s" % (token[0])
                 matched = 1
                 break
         if matched != 1:
+            w.write(item + "\n")
+    w.close()
+
+
+def check_pamd_sshd(lines):
+    f = open(pam_sshd_file, 'r')
+    w = open(pam_sshd_file, 'a')
+    g = f.readlines()
+    f.close()
+    for item in lines:
+        matched = 0
+        print "item: %s" % (item)
+        token = item.split()
+        print "\t len: %i" % (len(token))
+        print "token0: %s" % (token[0])
+        for line in g:
+            print "line: %s" % (line.strip())
+            if re.search("^" + token[0] + "\s+" + token[1] + "\s+" + token[2], line) is not None:
+                print "Matched: %s" % (line)
+                matched = 1
+                break
+        if matched != 1:
+            print "write item to %s: %s" % (pam_sshd_file, item)
             w.write(item + "\n")
     w.close()
 
@@ -394,20 +437,28 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print "verbose: %s" % (args.verbose)
     print "binary: %s" % (args.binary)
-    for item in dir_list:
+    for item in create_dir_list:
         if not os.path.exists(jail_root + item):
             if not create_dir(jail_root + item):
                 print "Failed to create source dir: %s" % (jail_root + item)
                 sys.exit(2)
+    for item in copy_file_list:
+        if not os.path.exists(jail_root + item):
+            copy_lib(
+                os.path.basename(item),
+                item,
+                jail_root + item
+            )
+    for item in copy_dir_list:
+        if os.path.exists(item['dest']):
+            run_cmd("cp -a " + item['source'] + " " + item['dest'])
+        else:
+            print "MISSING path: %s" % (item['dest'])
     for fsmount in mounts:
         if not os.path.ismount(fsmount['dest']):
             print "mount: %s" % (fsmount['source'])
             mount(fsmount['source'], fsmount['dest'], fsmount['fstype'], fsmount['fsoptions'])
-            # check /etc/fstab for existing entry
-            # proc\t/export/jail/proc\tproc\tnone\t0 0
             fstab_lines.append(fsmount['source'] + "\t" + fsmount['dest'] + "\t" + fsmount['fstype'] + "\t" + fsmount['fsoptions'] + "\t0 0")
-    for filename in empty_files:
-        write_file(filename, "")
     for device in device_list:
         dev_dir = os.path.dirname(jail_root + device['name'])
         print "dev_dir: %s" % (dev_dir)
@@ -429,7 +480,7 @@ if __name__ == "__main__":
         ldd(args.binary)
     else:
         for item in packages:
-            print "checking if %s exists" % (item['binary'])
+            print "\nchecking if %s exists" % (item['binary'])
             if not os.path.exists(item['binary']):
                 print "Installing package: %s" % (item['package'])
                 run_cmd("yum install -y " + item['package'])
@@ -440,10 +491,18 @@ if __name__ == "__main__":
                     if not create_dir(jail_root + os.path.dirname(item['binary'])):
                         print "Failed to create binary dir: %s" % (jail_root + os.path.dirname(item['binary']))
                         sys.exit(1)
+                file_name = os.path.basename(item['binary'])
+                file_source = item['binary']
+                file_target = jail_root + item['binary']
+                if file_name == "zsh":
+                    file_target = file_target.replace("zsh", "rzsh")
+                print "file_name: %s" % (file_name)
+                print "file_source: %s" % (file_source)
+                print "file_target: %s" % (file_target)
                 copy_lib(
-                    os.path.basename(item['binary']),
-                    item['binary'],
-                    jail_root + item['binary']
+                    file_name,
+                    file_source,
+                    file_target
                 )
                 if re.search("ping", item['binary']):
                     os.chmod(jail_root + item['binary'], 0o04755)
@@ -481,22 +540,18 @@ if __name__ == "__main__":
                     jail_root + os.path.dirname(libs[lib]['source']) + "/" + os.path.basename(libs[lib]['link_source']),
                     base_path_target + "/" + os.path.basename(libs[lib]['name'])
                 )
-                # disable for now, try to symlink first
-                # copy_lib(
-                #     os.path.basename(libs[lib]['link_source']),
-                #     os.path.dirname(libs[lib]['source']) + "/" + os.path.basename(libs[lib]['link_source']),
-                #     base_path_target + "/" + os.path.basename(libs[lib]['name'])
-                # )
             else:
                 copy_lib(
                     libs[lib]['name'],
                     libs[lib]['base_path_target'] + "/" + libs[lib]['name'],
                     base_path_target + "/" + libs[lib]['name']
                 )
-    # ???
-    # mount --bind /dev /export/jail/dev
-    # mount --bind /sys /export/jail/sys
     remove_suid()
-    write_file("/tmp/pam-sshd", sshd)
-    write_file("/tmp/zshenv", zshenv)
+    for filename in empty_files:
+        write_file(jail_root + filename, "")
+    write_file(jail_root + zshenv_file, zshenv)
+    check_pamd_sshd(pam_sshd_lines)
+    if (len(fstab_lines) > 0):
+        check_fstab(fstab_lines)
+        run_cmd("mount -a")
     write_file("/etc/sysconfig/chroot_setup", "1")
