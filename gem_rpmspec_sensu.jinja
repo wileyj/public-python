@@ -1,13 +1,20 @@
+<<<<<<< HEAD
 {{ autoreqprov }}
 %define filelist %{name}-%{version}-filelist
 {% if is_sensu %}
+=======
+%define filelist %{name}-%{version}-filelist
+>>>>>>> b6fce0218357203547f1dfb252d549bd4774a37c
 %global sensu_base %{_sysconfdir}/sensu
 %global plugins    %{sensu_base}/plugins
 %global metrics    %{sensu_base}/metrics
 %global handlers   %{sensu_base}/handlers
 %global extensions %{sensu_base}/extensions
 %global mutators   %{sensu_base}/mutators
+<<<<<<< HEAD
 {% endif %}
+=======
+>>>>>>> b6fce0218357203547f1dfb252d549bd4774a37c
 
 %global gem_name {{ name }}
 Name: rubygem-{{ name }}
@@ -67,7 +74,10 @@ gem install --install-dir %{buildroot}/%{gem_dir} --bindir %{buildroot}/%{_bindi
 %__sed -i -e 's/.*/\"&\"/g' $RPM_BUILD_DIR/%{filelist}
 find %{buildroot} -type f -exec %{__sed} -i -e 's|/usr/local/bin/ruby|/usr/bin/ruby|g' {} \;
 
+<<<<<<< HEAD
 {% if is_sensu %}
+=======
+>>>>>>> b6fce0218357203547f1dfb252d549bd4774a37c
 if [[ "%{name}" == *plugins* || "%{name}" == *metrics* || "%{name}" == *mutator* || "%{name}" == *handler* ]]; then
   if [ -d %{buildroot}%{_bindir} ]; then
     for file in `ls %{buildroot}%{_bindir}`
@@ -109,7 +119,10 @@ if [[ "%{name}" == *plugins* || "%{name}" == *metrics* || "%{name}" == *mutator*
     done
   fi
 fi
+<<<<<<< HEAD
 {% endif %}
+=======
+>>>>>>> b6fce0218357203547f1dfb252d549bd4774a37c
 exit 0
 
 %clean

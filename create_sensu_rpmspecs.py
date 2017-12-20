@@ -29,6 +29,13 @@ def parse_json(data):
     if data['name'] == "sys-proctable":
         # rubygems.org header is lying. let's force version to 0.9.8 for now
         data['version'] = '0.9.8'
+<<<<<<< HEAD
+=======
+    if re.search("plugins-", data['name']) is not None:
+        template = "gem_rpmspec_sensu.jinja"
+    else:
+        template = "gem_rpmspec_sensu.jinja"
+>>>>>>> b6fce0218357203547f1dfb252d549bd4774a37c
     template_values = {
         'name': data['name'],
         'version': data['version'],
@@ -36,6 +43,7 @@ def parse_json(data):
         'url': data['homepage_uri'],
         'license': 'GPL',
         'development': [],
+<<<<<<< HEAD
         'autoreqprov': '',
         'is_sensu': False,
         'requires': []
@@ -46,6 +54,10 @@ def parse_json(data):
         template_values['is_sensu'] = True
     else:
         template = "gem_rpmspec_sensu.jinja"
+=======
+        'requires': []
+    }
+>>>>>>> b6fce0218357203547f1dfb252d549bd4774a37c
     if data['licenses'] is not None:
         if len(data['licenses']) > 0:
             template_values['license'] = data['licenses'][0]
@@ -56,7 +68,11 @@ def parse_json(data):
         version_req = item['requirements'].split(" ")[0]
         version = item['requirements'].split(" ")[1]
         if version_req == "~>":
+<<<<<<< HEAD
             version_req = ">="
+=======
+            version_req = "="
+>>>>>>> b6fce0218357203547f1dfb252d549bd4774a37c
         if version == "0":
             required_package = {'name': item['name']}
         else:

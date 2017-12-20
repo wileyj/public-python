@@ -1,10 +1,14 @@
+#!/usr/bin/env python
 import sys
 import os
 import argparse
 import re
 import errno
 import stat
-import ctypes
+import pwd
+import grp
+# no longer needed since we hardcoded the mount cmd for now
+# import ctypes
 from shutil import copyfile, copymode
 from subprocess import Popen, PIPE
 abspath = os.path.abspath(__file__)
@@ -14,13 +18,23 @@ cwd = os.getcwd()
 libs = {}
 fstab_lines = []
 jail_root = "/export/jail"
+group = "jailed"
+user = "rzshuser"
+uid = 1501
+gid = 1501
+homedir = "/home/" + user
+chroot_homedir = jail_root + "/home/" + user
+sshdir = homedir + "/.ssh"
+# keyfile = sshdir + "/authorized_keys"
+
 empty_files = [
     "/etc/zprofile",
     "/etc/zlogout",
     "/etc/zshrc"
 ]
 create_dir_list = [
-    "/home/rzshuser/.ssh",
+    homedir,
+    sshdir,
     "/lib64",
     "/usr/share/terminfo/x",
     "/usr/lib64",
@@ -28,7 +42,8 @@ create_dir_list = [
     "/proc",
     "/sys",
     "/etc",
-    "/etc/security"
+    "/etc/security",
+    "/tmp"
 ]
 copy_file_list = [
     "/etc/nsswitch.conf",
@@ -91,14 +106,14 @@ mounts = [
         'source': 'proc',
         'dest': '/export/jail/proc',
         'fstype': 'proc',
-        'fsoptions': '',
+        'fsoptions': 'defaults,hidepid=2',
         'freq': 0,
         'passno': 0
     }, {
         'source': 'sysfs',
         'dest': '/export/jail/sys',
         'fstype': 'sysfs',
-        'fsoptions': '',
+        'fsoptions': 'defaults,hidepid=2',
         'freq': 0,
         'passno': 0
     }, {
@@ -106,6 +121,13 @@ mounts = [
         'dest': '/export/jail/dev/pts',
         'fstype': 'devpts',
         'fsoptions': 'seclabel,gid=5,mode=620,ptmxmode=000',
+        'freq': 0,
+        'passno': 0
+    }, {
+        'source': '/dev',
+        'dest': '/export/jail/dev',
+        'fstype': 'defaults',
+        'fsoptions': 'rw,bind',
         'freq': 0,
         'passno': 0
     }
@@ -133,12 +155,26 @@ packages = [
         'binary': '/usr/bin/ssh',
         'package': 'openssh-clients'
     }, {
-        'binary': '/usr/bin/telnet',
-        'package': 'telnet'
+        'binary': '/bin/nc',
+        'package': 'nmap-ncat'
+    }, {
+        'binary': '/sbin/nologin',
+        'package': 'util-linux'
+    }, {
+        'binary': '/bin/ssh-add',
+        'package': 'openssh-clients'
+    }, {
+        'binary': '/bin/ssh-agent',
+        'package': 'openssh-clients'
+    }, {
+        'binary': '/bin/whoami',
+        'package': 'coreutils'
     }
 ]
+
 pam_sshd_lines = [
-    "session    required    pam_chroot.so"
+    "session    required    pam_chroot.so",
+    "session    optional    pam_motd.so  motd=/etc/motd"
 ]
 pam_sshd_file = "/etc/pam.d/sshd"
 fstab_file = "/etc/fstab"
@@ -243,31 +279,42 @@ disable zparseopts
 disable zregexparse
 disable zstyle
 """
-print "cwd: %s" % (cwd)
 
 
 def ldd(binary):
+    print "*** Running ldd on %s" % (binary)
     cmd = "/usr/bin/ldd " + binary
-    print "running command: %s" % (cmd)
     return get_libs(run_cmd(cmd))
 
 
 def mount(source, target, fs, options=''):
-    ret = ctypes.CDLL('libc.so.6', use_errno=True).mount(source, target, fs, 0, options)
-    if ret < 0:
-        errno = ctypes.get_errno()
-        raise RuntimeError("Error mounting {} ({}) on {} with options '{}': {}".
-                           format(source, fs, target, options, os.strerror(errno)))
+    print "\n*** Mounting (%s -> %s)" % (source, target)
+    if source == "/dev" or source == "/sys":
+        print "\tfound /dev mount....running this as syscall"
+        mount_cmd = "mount --bind " + source + " " + target
+        run_cmd(mount_cmd)
+    else:
+        print "Mounting: %s %s %s %s" % (source, target, fs, options)
+        mount_cmd = "mount -t %s %s -o %s %s" % (fs, source, options, target)
+        run_cmd(mount_cmd)
+        # this isn't working since it can't handle some of the options we need.
+        # need to investigate later if it's possible to fix
+        # ret = ctypes.CDLL('libc.so.6', use_errno=True).mount(source, target, fs, 4096, options)
+        # if ret < 0:
+        #     errno = ctypes.get_errno()
+        #     raise RuntimeError("Error mounting {} ({}) on {} with options '{}': {}".
+        #                        format(source, fs, target, options, os.strerror(errno)))
+        #
 
 
 def create_symlink(source, target):
-    print "create_symlink Source: %s" % (source)
-    print "create_symlink Target: %s" % (target)
+    print "\n*** Creating SymLink (%s -> %s)" % (source, target)
     # return True
     try:
         os.symlink(source, target)
         return True
     except OSError as exc:
+        print "\t - Failed"
         if exc.errno != errno.EEXIST:
             raise
         pass
@@ -275,7 +322,7 @@ def create_symlink(source, target):
 
 
 def write_file(filename, content):
-    print "Editing File: %s" % (filename)
+    print "\n*** Writing File: %s" % (filename)
     file = open(filename, "w")
     file.write(content)
     file.close()
@@ -283,7 +330,7 @@ def write_file(filename, content):
 
 
 def create_dir(dir):
-    print "Create DIR: %s" % (dir)
+    print "\n*** Creating Directory %s" % (dir)
     # return True
     try:
         os.makedirs(dir)
@@ -296,11 +343,11 @@ def create_dir(dir):
 
 
 def create_dev(device, dev_type, dev_mode, major, minor):
-    print "Create device: %s" % (device)
-    print "\tdev type: %s" % (dev_type)
-    print "\tdev mode: %i" % (dev_mode)
-    print "\t dev major: %i" % (major)
-    print "\t dev minor: %i" % (minor)
+    print "\n*** Creating Device %s" % (device)
+    print "\t - type: %s" % (dev_type)
+    print "\t - mode: %i" % (dev_mode)
+    print "\t - major: %i" % (major)
+    print "\t - minor: %i" % (minor)
     try:
         os.mknod(device, dev_type, os.makedev(major, minor))
         os.chmod(device, dev_mode)
@@ -313,18 +360,19 @@ def create_dev(device, dev_type, dev_mode, major, minor):
 
 
 def copy_lib(name, source, target):
-    print "copy_lib Name: %s" % (name)
-    print "copy_lib Source: %s" % (source)
-    print "copy_lib Target: %s" % (target)
+    print "\tCopy %s (%s -> %s)" % (name, source, target)
     # return True
-    try:
-        copyfile(source, target)
-        copymode(source, target)
-        return True
-    except OSError as exc:
-        if exc.errno != errno.EEXIST:
-            raise
-        pass
+    if target == "/export/jail/bin/ssh-agent" and os.path.exists("/export/jail/bin/ssh-agent"):
+        print "\t * Matched ssh-agent, but ssh-agent already running. Skipping"
+    else:
+        try:
+            copyfile(source, target)
+            copymode(source, target)
+            return True
+        except OSError as exc:
+            if exc.errno != errno.EEXIST:
+                raise
+            pass
     return False
 
 
@@ -355,36 +403,37 @@ def get_libs(p):
 
 
 def remove_suid():
+    print "\n*** Removing SUID bits"
     cmd = 'find /export/jail ! -path "*/proc*" -perm -4000 -type f'
     stdout = run_cmd(cmd).communicate()
     suid_list = str(stdout[0]).split("\n")[:-1]
     for item in suid_list:
-        print "Line: %s" % (item)
-        # chmod u-s item
+        print "Remove SUID from: %s" % (item)
+        run_cmd("chmod u-s " + item)
     return True
 
 
 def run_cmd(cmd):
-    print "runing command: %s" % (cmd)
+    print "*** Running Command: %s" % (cmd)
     p = Popen(cmd, shell=True, stdout=PIPE)
     p.wait()
     return p
 
 
 def yum_install(package):
-    print "Installing package: %s" % (package)
+    print "\t Installing Package: %s" % (package)
     p = Popen("yum install -y " + package, shell=True, stdout=PIPE)
     return p.returncode
 
 
 def check_fstab(lines):
+    print "\n*** Checking /etc/fstab"
     f = open(fstab_file, 'r')
     w = open(fstab_file, 'a')
     g = f.readlines()
     f.close()
     for item in lines:
         matched = 0
-        print "item: %s" % (item)
         token = item.split()
         for line in g:
             if re.search("^" + token[0] + "\s+" + token[1], line) is not None:
@@ -392,31 +441,118 @@ def check_fstab(lines):
                 matched = 1
                 break
         if matched != 1:
+            print "Writing line to fstab: %s" % (item)
             w.write(item + "\n")
     w.close()
 
 
 def check_pamd_sshd(lines):
+    print "\n*** Checking file %s" % (pam_sshd_file)
     f = open(pam_sshd_file, 'r')
     w = open(pam_sshd_file, 'a')
     g = f.readlines()
     f.close()
     for item in lines:
         matched = 0
-        print "item: %s" % (item)
+        # print "item: %s" % (item)
         token = item.split()
-        print "\t len: %i" % (len(token))
-        print "token0: %s" % (token[0])
+        # print "\t len: %i" % (len(token))
+        # print "token0: %s" % (token[0])
         for line in g:
-            print "line: %s" % (line.strip())
+            # print "line: %s" % (line.strip())
             if re.search("^" + token[0] + "\s+" + token[1] + "\s+" + token[2], line) is not None:
-                print "Matched: %s" % (line)
+                print "\tMatched: %s" % (line.strip())
                 matched = 1
                 break
         if matched != 1:
-            print "write item to %s: %s" % (pam_sshd_file, item)
+            print "\t  - writing pam.d ssh line: %s" % (item)
             w.write(item + "\n")
     w.close()
+
+
+def touch(fname, times=None):
+    print "\n*** Touching File: %s" % (fname)
+    with open(fname, 'a'):
+        os.utime(fname, times)
+
+
+def check_user():
+    print "\n*** Checking for user: %s" % (user)
+    try:
+        print "\t - Found User"
+        pwd.getpwnam(user)
+    except KeyError:
+        print "\t %s Missing" % (user)
+        print "\t - Creating user: %s" % (user)
+        # create user manually.....lame
+        cmd = "useradd -d " + homedir + " -M -N -o -g " + group + " -u " + str(uid) + " -c 'bastion " + user + " account' -s /sbin/nologin " + user
+        run_cmd(cmd)
+    return True
+
+
+def check_group():
+    print "\n*** Checking group: %s" % (group)
+    try:
+        print "\tFound group"
+        grp.getgrnam(group)
+        pass
+    except KeyError:
+        print "\t %s Missing" % (group)
+        print "\t  - Creating group: %s" % (group)
+        # create group manually.....lame
+        cmd = "groupadd -g " + gid + " " + group
+        run_cmd(cmd)
+    return True
+
+
+def check_rzshuser_files():
+    check_user()
+    check_group()
+    print "\n*** Checking user(%s) files" % (user)
+    if not os.path.exists(homedir):
+        print "\tHomedir Missing"
+        print "\t  - Creating user homedir " + homedir
+        if not create_dir(homedir):
+            print "\t    - Failed to create user homedir: %s" % (homedir)
+    # if not os.path.exists(sshdir):
+    #     print " - Creating user sshdir " + sshdir
+    #     if not create_dir(sshdir):
+    #         print "Failed to create user sshdir: %s" % (sshdir)
+    # if not os.path.exists(keyfile):
+    #     print "Creating user authorized_keys file " + keyfile
+    #     touch(keyfile)
+
+    # check file perms
+    st = os.stat(homedir)
+    if oct(st.st_mode)[-3:] is not 750:
+        print "\t - Setting %s perm to %s" % (homedir, "0o770")
+        os.chmod(homedir, 0o770)
+        os.chown(homedir, uid, gid)
+    # else:
+    #     print "homedir perm: %s" % (oct(st.st_mode)[-3:])
+    # st = os.stat(sshdir)
+    # if oct(st.st_mode)[-3:] is not 700:
+    #     print "setting %s perm to %s" % (sshdir, "0o700")
+    #     os.chmod(sshdir, 0o700)
+    #     os.chown(sshdir, uid, gid)
+    # else:
+    #     print "sshdir perm: %s" % (oct(st.st_mode)[-3:])
+    # st = os.stat(keyfile)
+    # if oct(st.st_mode)[-3:] is not 640:
+    #     print "setting %s perm to %s" % (keyfile, "0o640")
+    #     os.chmod(keyfile, 0o640)
+    #     os.chown(keyfile, uid, gid)
+    # else:
+    #     print "keyfile perm: %s" % (oct(st.st_mode)[-3:])
+    if os.path.exists(chroot_homedir):
+        print "Found existing jail homedir: %s" % (chroot_homedir)
+        st = os.stat(chroot_homedir)
+        if oct(st.st_mode)[-3:] is not 770:
+            print "  chmod 770 on %s" % (chroot_homedir)
+            os.chmod(chroot_homedir, 0o770)
+        print "  chown %i %i on %s" % (uid, gid, chroot_homedir)
+        os.chown(chroot_homedir, uid, gid)
+    return True
 
 
 if __name__ == "__main__":
@@ -435,13 +571,14 @@ if __name__ == "__main__":
         help="Binary",
     )
     args = parser.parse_args()
-    print "verbose: %s" % (args.verbose)
-    print "binary: %s" % (args.binary)
     for item in create_dir_list:
         if not os.path.exists(jail_root + item):
             if not create_dir(jail_root + item):
-                print "Failed to create source dir: %s" % (jail_root + item)
+                print "Exiting. Failed to create source dir: %s" % (jail_root + item)
                 sys.exit(2)
+        if item is "/tmp":
+            print "Found tmp dir: %s" % (item)
+            run_cmd("chmod a+w " + jail_root + item)
     for item in copy_file_list:
         if not os.path.exists(jail_root + item):
             copy_lib(
@@ -453,52 +590,49 @@ if __name__ == "__main__":
         if os.path.exists(item['dest']):
             run_cmd("cp -a " + item['source'] + " " + item['dest'])
         else:
-            print "MISSING path: %s" % (item['dest'])
+            print "Missing Destination path: %s" % (item['dest'])
     for fsmount in mounts:
         if not os.path.ismount(fsmount['dest']):
-            print "mount: %s" % (fsmount['source'])
+            print "\t - %s is not mounted: %s" % (mount, fsmount['dest'])
             mount(fsmount['source'], fsmount['dest'], fsmount['fstype'], fsmount['fsoptions'])
-            fstab_lines.append(fsmount['source'] + "\t" + fsmount['dest'] + "\t" + fsmount['fstype'] + "\t" + fsmount['fsoptions'] + "\t0 0")
+        fstab_lines.append(fsmount['source'] + "\t" + fsmount['dest'] + "\t" + fsmount['fstype'] + "\t" + fsmount['fsoptions'] + "\t0 0")
     for device in device_list:
         dev_dir = os.path.dirname(jail_root + device['name'])
-        print "dev_dir: %s" % (dev_dir)
         if not os.path.exists(dev_dir):
             print "Source Missing: %s" % (dev_dir)
             if not create_dir(dev_dir):
                 print "Failed to create source dir: %s" % (dev_dir)
                 sys.exit(2)
         create_dev(jail_root + device['name'], device['type'], device['mode'], device['major'], device['minor'])
-    if os.path.exists("/export/jail/home/rzshuser/.ssh"):
-        if os.path.exists("/export/jail/home/rzshuser/.ssh/known_hosts") and not os.path.islink("/export/jail/home/rzshuser/.ssh/known_hosts"):
-            print "rm file /export/jail/home/rzshuser/.ssh/known_hosts"
-            # delete_file()
+    if os.path.exists("/export/jail" + sshdir):
+        if os.path.exists("/export/jail" + sshdir + "/known_hosts") and not os.path.islink("/export/jail" + sshdir + "/known_hosts"):
+            print "Found %s....Removingit" % ("/export/jail/" + sshdir + "/known_hosts")
+            os.remove("/export/jail/" + sshdir + "/known_hosts")
+            create_symlink("/export/jail/dev/null", "/export/jail" + sshdir + "/known_hosts")
     else:
-        print "create dir export/jail/home/rzshuser/.ssh"
-    create_symlink("/export/jail/dev/null", "/export/jail/home/rzshuser/.ssh/known_hosts")
-
+        create_symlink("/export/jail/dev/null", "/export/jail" + sshdir + "/known_hosts")
     if args.binary:
         ldd(args.binary)
     else:
+        print "*** Checking on Packages/Binaries"
         for item in packages:
-            print "\nchecking if %s exists" % (item['binary'])
-            if not os.path.exists(item['binary']):
-                print "Installing package: %s" % (item['package'])
+            print "Checking if %s exists" % (item['binary'])
+            file_name = os.path.basename(item['binary'])
+            file_source = item['binary']
+            file_target = jail_root + item['binary']
+            if file_name == "zsh":
+                file_target = file_target.replace("zsh", "rzsh")
+            if not os.path.exists(file_source):
+                print "Installing Package: %s" % (item['package'])
                 run_cmd("yum install -y " + item['package'])
-            if os.path.exists(item['binary']):
+            if os.path.exists(file_source) and not os.path.exists(file_target):
                 ldd(item['binary'])
                 if not os.path.exists(jail_root + os.path.dirname(item['binary'])):
                     print "Source Missing: %s" % (jail_root + os.path.dirname(item['binary']))
                     if not create_dir(jail_root + os.path.dirname(item['binary'])):
                         print "Failed to create binary dir: %s" % (jail_root + os.path.dirname(item['binary']))
                         sys.exit(1)
-                file_name = os.path.basename(item['binary'])
-                file_source = item['binary']
-                file_target = jail_root + item['binary']
-                if file_name == "zsh":
-                    file_target = file_target.replace("zsh", "rzsh")
-                print "file_name: %s" % (file_name)
-                print "file_source: %s" % (file_source)
-                print "file_target: %s" % (file_target)
+
                 copy_lib(
                     file_name,
                     file_source,
@@ -507,29 +641,20 @@ if __name__ == "__main__":
                 if re.search("ping", item['binary']):
                     os.chmod(jail_root + item['binary'], 0o04755)
     if len(libs) > 0:
-        print "libs len: %i" % (len(libs))
+        print "*** Total Number of libraries to copy: %i" % (len(libs))
         for lib in libs:
             base_path_source = jail_root + libs[lib]['base_path_source']
             base_path_target = jail_root + libs[lib]['base_path_target']
-            print "\nLib:"
-            print "\tName: %s" % (libs[lib]['name'])
-            print "\tLink: %s" % (libs[lib]['link'])
-            print "\tLink_source: %s" % (libs[lib]['link_source'])
-            print "\tSource: %s" % (libs[lib]['base_path_source'])
-            print "\tTarget: %s" % (libs[lib]['base_path_target'])
-            print "\tBase_path_source: %s" % (base_path_source)
-            print "\tBase_path_target: %s" % (base_path_target)
             if not os.path.exists(base_path_source):
-                print "Source Missing: %s" % (base_path_source)
+                print "- Source  Missing: %s" % (base_path_source)
                 if not create_dir(base_path_source):
                     print "Failed to create source dir: %s" % (base_path_source)
                     sys.exit(1)
             if not os.path.exists(base_path_target):
-                print "target Missing: %s" % (base_path_target)
+                print "- Target  Missing: %s" % (base_path_target)
                 if not create_dir(base_path_target):
                     print "Failed to create target dir: %s" % (base_path_target)
                     sys.exit(1)
-
             if libs[lib]['link']:
                 copy_lib(
                     os.path.basename(libs[lib]['link_source']),
@@ -548,10 +673,15 @@ if __name__ == "__main__":
                 )
     remove_suid()
     for filename in empty_files:
-        write_file(jail_root + filename, "")
+        content = ""
+        write_file(jail_root + filename, content)
     write_file(jail_root + zshenv_file, zshenv)
     check_pamd_sshd(pam_sshd_lines)
+    check_rzshuser_files()
     if (len(fstab_lines) > 0):
         check_fstab(fstab_lines)
         run_cmd("mount -a")
+        # need a check around this command: it'll fail if run more than once
+        if not os.path.exists("/export/jail/tmp/ssh-agent"):
+            run_cmd("/export/jail/bin/ssh-agent -a /export/jail/tmp/ssh-agent")
     write_file("/etc/sysconfig/chroot_setup", "1")
