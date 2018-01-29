@@ -1,20 +1,13 @@
-<<<<<<< HEAD
-{{ autoreqprov }}
+%global with_alinux 1
+%global alinux_ruby 24
+
 %define filelist %{name}-%{version}-filelist
-{% if is_sensu %}
-=======
-%define filelist %{name}-%{version}-filelist
->>>>>>> b6fce0218357203547f1dfb252d549bd4774a37c
 %global sensu_base %{_sysconfdir}/sensu
 %global plugins    %{sensu_base}/plugins
 %global metrics    %{sensu_base}/metrics
 %global handlers   %{sensu_base}/handlers
 %global extensions %{sensu_base}/extensions
 %global mutators   %{sensu_base}/mutators
-<<<<<<< HEAD
-{% endif %}
-=======
->>>>>>> b6fce0218357203547f1dfb252d549bd4774a37c
 
 %global gem_name {{ name }}
 Name: rubygem-{{ name }}
@@ -41,6 +34,33 @@ Requires: rubygem-{{ item.name }} {% if item.version %} {{ item.version }}{% end
 
 %description
 {{ summary }}
+
+%if 0%{?with_alinux}
+%define filelist_alinux rubygem%{alinux_ruby}-activesupport-%{version}-filelist
+%package -n rubygem%{alinux_ruby}-{{ name }}
+Summary: rubygem%{alinux_ruby} {{ name }}
+Group: Development/Languages
+License: {{ license }}
+URL: {{ url }}
+Vendor: %{vendor}
+Packager: %{packager}
+Requires: ruby%{alinux_ruby} rubygems%{alinux_ruby}
+Provides: rubygem%{alinux_ruby}-{{ name }} = %{version}
+Provides: rubygem%{alinux_ruby}({{ name }}) = %{version}
+Obsoletes: rubygem%{alinux_ruby}-{{ name }} < %{version}
+Obsoletes: rubygem%{alinux_ruby}({{ name }}) < %{version}
+BuildRequires: ruby-devel rubygems-devel rubygem-rpm-macros
+
+{% for item in buildrequires -%}
+BuildRequires: rubygem%{alinux_ruby}-{{ item.name }} {% if item.version %}  {{ item.version }}{% endif %}
+{% endfor %}
+{% for item in requires -%}
+Requires: rubygem%{alinux_ruby}-{{ item.name }} {% if item.version %} {{ item.version }}{% endif %}
+{% endfor %}
+%description -n rubygem%{alinux_ruby}-{{ name }}
+** Amazon Linux Ruby
+{{ summary }}
+%endif
 
 %prep
 %build
@@ -72,12 +92,36 @@ gem install --install-dir %{buildroot}/%{gem_dir} --bindir %{buildroot}/%{_bindi
     }
 ' > $RPM_BUILD_DIR/%{filelist}
 %__sed -i -e 's/.*/\"&\"/g' $RPM_BUILD_DIR/%{filelist}
+%if 0%{?with_alinux}
+gem install --install-dir %{buildroot}/%{gem24_dir} --bindir %{buildroot}/%{_bindir} --force --no-rdoc --no-ri --no-doc --ignore-dependencies {{ name }} -v %{version}
+%{__perl} -MFile::Find -le '
+    find ({ wanted => \&wanted, no_chdir => 1}, "%{buildroot}");
+    for my $x (sort @dirs, @files) {
+        push @ret, $x unless indirs($x);
+    }
+    print join "\n", sort @ret;
+    sub wanted {
+        return if /auto$/;
+        local $_ = $File::Find::name;
+        my $f = $_; s|^\Q%{buildroot}\E||;
+        return unless length;
+        return $files[@files] = $_ if -f $f;
+        $d = $_;
+        /\Q$d\E/ && return for reverse sort @INC;
+        $d =~ /\Q$_\E/ && return
+            for qw|/etc %_prefix/man %_prefix/bin %_prefix/share|;
+        $dirs[@dirs] = $_;
+      }
+
+    sub indirs {
+        my $x = shift;
+        $x =~ /^\Q$_\E\// && $x ne $_ && return 1 for @dirs;
+    }
+' > $RPM_BUILD_DIR/%{filelist_alinux}
+%__sed -i -e 's/.*/\"&\"/g' $RPM_BUILD_DIR/%{filelist_alinux}
+%endif
 find %{buildroot} -type f -exec %{__sed} -i -e 's|/usr/local/bin/ruby|/usr/bin/ruby|g' {} \;
 
-<<<<<<< HEAD
-{% if is_sensu %}
-=======
->>>>>>> b6fce0218357203547f1dfb252d549bd4774a37c
 if [[ "%{name}" == *plugins* || "%{name}" == *metrics* || "%{name}" == *mutator* || "%{name}" == *handler* ]]; then
   if [ -d %{buildroot}%{_bindir} ]; then
     for file in `ls %{buildroot}%{_bindir}`
@@ -88,49 +132,62 @@ if [[ "%{name}" == *plugins* || "%{name}" == *metrics* || "%{name}" == *mutator*
         fi
         %{__ln_s} -f %{_bindir}/$file %{buildroot}%{metrics}/$file
         echo "%{metrics}/$file" >> %{filelist}
+        %if 0%{?with_alinux}
+        echo "%{metrics}/$file" >> %{filelist_alinux}
+        %endif
       elif [[ $file == check* ]]; then
         if [ ! -d %{buildroot}%{plugins} ];then
             %__mkdir_p %{buildroot}%{plugins}
         fi
         %{__ln_s} -f %{_bindir}/$file %{buildroot}%{plugins}/$file
         echo "%{plugins}/$file" >> %{filelist}
-
+        %if 0%{?with_alinux}
+        echo "%{plugins}/$file" >> %{filelist_alinux}
+        %endif
       elif [[ $file == mutator* ]]; then
         if [ ! -d %{buildroot}%{mutators} ];then
             %__mkdir_p %{buildroot}%{mutators}
         fi
         %{__ln_s} -f %{_bindir}/$file %{buildroot}%{mutators}/$file
         echo "%{mutators}/$file" >> %{filelist}
-
+        %if 0%{?with_alinux}
+        echo "%{mutators}/$file" >> %{filelist_alinux}
+        %endif
       elif [[ $file == handle* ]]; then
         if [ ! -d %{buildroot}%{handlers} ];then
             %__mkdir_p %{buildroot}%{handlers}
         fi
         %{__ln_s} -f %{_bindir}/$file %{buildroot}%{handlers}/$file
         echo "%{handlers}/$file" >> %{filelist}
-
+        %if 0%{?with_alinux}
+        echo "%{handlers}/$file" >> %{filelist_alinux}
+        %endif
       else
         if [ ! -d %{buildroot}%{plugins} ];then
             %__mkdir_p %{buildroot}%{plugins}
         fi
         %{__ln_s} -f %{_bindir}/$file %{buildroot}%{plugins}/$file
         echo "%{plugins}/$file" >> %{filelist}
+        %if 0%{?with_alinux}
+        echo "%{plugins}/$file" >> %{filelist_alinux}
+        %endif
       fi
     done
   fi
 fi
-<<<<<<< HEAD
-{% endif %}
-=======
->>>>>>> b6fce0218357203547f1dfb252d549bd4774a37c
 exit 0
 
 %clean
 [ "%{buildroot}" != "/" ] && %__rm -rf %{buildroot}
 [ "%{_builddir}/%{name}-%{version}" != "/" ] && %__rm -rf %{_builddir}/%{name}-%{version}
 [ "%{_builddir}/%{filelist}" != "/" ] && %__rm -rf %{_builddir}/%{filelist}
+[ "%{_builddir}/%{filelist_alinux}" != "/" ] && %__rm -rf %{_builddir}/%{filelist_alinux}
 [ "%{_builddir}/%{name}" != "/" ] && %__rm -rf %{_builddir}/%{name}
 
 %files -f %{filelist}
+
+%if 0%{?with_alinux}
+%files -n rubygem%{alinux_ruby}-{{ name }} -f %{filelist_alinux}
+%endif
 
 ## end file
